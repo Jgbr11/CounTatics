@@ -81,6 +81,37 @@ public class SteamBotClientService {
     }
 
     /**
+     * Envia uma mensagem simples de texto para o chat da Steam de um jogador.
+     *
+     * @param steamId64 SteamID64 do jogador
+     * @param message   mensagem de texto
+     * @return true se o envio foi bem-sucedido
+     */
+    public boolean sendSimpleNotification(String steamId64, String message) {
+        BotNotifyPayload payload = BotNotifyPayload.builder()
+                .steamId(steamId64)
+                .message(message)
+                .build();
+
+        log.info("📤 Enviando notificação simples para {} via Steam Bot...", steamId64);
+
+        try {
+            restClient.post()
+                    .uri("/notify")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("✅ Notificação simples entregue ao Steam Bot para {}", steamId64);
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao enviar notificação simples para {}: {}", steamId64, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Formata o resultado da análise estatística em uma mensagem legível para o chat da Steam.
      */
     private String formatReportMessage(String steamId64, MatchAnalysisResult matchResult) {

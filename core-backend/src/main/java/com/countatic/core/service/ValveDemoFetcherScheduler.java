@@ -106,29 +106,44 @@ public class ValveDemoFetcherScheduler {
 
         log.info("🎮 Nova partida identificada para {}: {}", player.getDisplayName(), nextShareCode);
 
-        // 2. Construir URL do CDN da Valve (ex: obtido via match info / share code)
-        // Nota: Em ambiente real, chamamos o endpoint GetFullMatchInfo da Valve.
-        // Aqui simulamos a URL ou usamos o decodificador para a URL oficial da Valve.
-        String demoUrl = buildValveDemoUrl(nextShareCode);
-
-        // 3. Baixar e descompactar .dem.bz2 da Valve
-        byte[] demoBytes = valveApiService.downloadAndDecompressDemo(demoUrl);
-        String fileName = nextShareCode + ".dem";
-        String demoHash = calculateSha256(demoBytes);
-
-        // 4. Enviar para o Demo Parser (Go)
-        ParsedDemoDTO parsedDemo = demoParserClientService.parseDemo(fileName, demoBytes);
-
-        // 5. Salvar entidades JPA e calcular estatísticas (Spring Strategies)
-        MatchAnalysisResult analysisResult = matchAnalysisService.processDemo(fileName, demoHash, parsedDemo);
-
-        // 6. Atualizar o novo Share Code no MySQL para a próxima busca
+        // 2. Atualizar o Share Code no banco ANTES de tentar processar a demo
+        //    (garante que o sistema avança para a próxima partida mesmo se o download falhar)
         player.setLatestShareCode(nextShareCode);
         playerRepository.save(player);
         log.info("✅ Share Code do jogador {} atualizado para {}", player.getDisplayName(), nextShareCode);
 
-        // 7. Notificar o jogador via Chat da Steam (Node.js Bot)
-        steamBotClientService.notifyPlayer(steamId64, analysisResult);
+        // 3. Tentar baixar e processar a demo (pode falhar se a URL não estiver disponível)
+        try {
+            String demoUrl = buildValveDemoUrl(nextShareCode);
+            byte[] demoBytes = valveApiService.downloadAndDecompressDemo(demoUrl);
+            String fileName = nextShareCode + ".dem";
+            String demoHash = calculateSha256(demoBytes);
+
+            // 4. Enviar para o Demo Parser (Go)
+            ParsedDemoDTO parsedDemo = demoParserClientService.parseDemo(fileName, demoBytes);
+
+            // 5. Salvar entidades JPA e calcular estatísticas (Spring Strategies)
+            MatchAnalysisResult analysisResult = matchAnalysisService.processDemo(fileName, demoHash, parsedDemo);
+
+            // 6. Notificar o jogador via Chat da Steam (Node.js Bot) com stats completas
+            steamBotClientService.notifyPlayer(steamId64, analysisResult);
+
+        } catch (Exception e) {
+            log.warn("⚠️ Demo não disponível para download ({}). " +
+                    "Partida detectada e registrada, mas stats não puderam ser calculadas. Erro: {}",
+                    nextShareCode, e.getMessage());
+
+            // Notificar o jogador que uma nova partida foi detectada (sem stats detalhadas)
+            try {
+                steamBotClientService.sendSimpleNotification(steamId64,
+                        String.format("🎮 Nova partida de CS2 detectada!\n" +
+                                "📋 Share Code: %s\n" +
+                                "⚠️ Demo indisponível para análise automática no momento.",
+                                nextShareCode));
+            } catch (Exception notifyErr) {
+                log.debug("Notificação de partida sem stats falhou: {}", notifyErr.getMessage());
+            }
+        }
 
         return true;
     }

@@ -1,4 +1,5 @@
 import SteamUser from "steam-user";
+import SteamID from "steamid";
 import fs from "fs";
 import path from "path";
 import { config } from "../config";
@@ -299,7 +300,7 @@ export class SteamClientManager {
 
     try {
       logger.info(`📤 Enviando mensagem para ${steamId64}...`);
-      const steamID = new (SteamUser as any).SteamID(steamId64);
+      const steamID = new SteamID(steamId64);
       await this.client.chat.sendFriendMessage(steamID, message);
 
       logger.info(`✅ Mensagem enviada com sucesso para ${steamId64}`);

@@ -44,6 +44,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SERVICES_PARSER_URL: http://parser-service:8081
       SERVICES_BOT_URL: http://steam-bot:3000
+      STEAM_WEB_API_KEY: B9F646F22285653ECA34EEE14E054194
     depends_on:
       mysql-db:
         condition: service_healthy
@@ -85,6 +86,8 @@ services:
       - ./steam-bot/.env
     environment:
       BOT_PORT: "3000"
+    volumes:
+      - ./steam-bot/refreshToken.txt:/app/refreshToken.txt:ro
     networks:
       - countatic-net
 
