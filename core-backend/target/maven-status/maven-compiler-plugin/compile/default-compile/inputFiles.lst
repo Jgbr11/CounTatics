@@ -1,9 +1,12 @@
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\controller\PlayerAuthController.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\CoreBackendApplication.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\parser\ParsedDemoDTO.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\parser\ParsedEventDTO.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\parser\ParsedRoundDTO.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\stats\MatchAnalysisResult.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\stats\PlayerStatResult.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\valve\ValveAuthRequestDTO.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\dto\valve\ValveNextMatchResponseDTO.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\EventType.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\Match.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\MatchEvent.java
@@ -16,7 +19,12 @@ C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countat
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\MatchRepository.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\PlayerRepository.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\RoundRepository.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\DemoParserClientService.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\MatchAnalysisService.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\SteamBotClientService.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\ValveApiService.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\ValveDemoFetcherScheduler.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\impl\AimStatStrategy.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\impl\UtilityStatStrategy.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\StatCalculationStrategy.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\util\CS2ShareCodeDecoder.java

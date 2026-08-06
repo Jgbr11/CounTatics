@@ -29,6 +29,15 @@ spring:
 server:
   port: 8080
 
+# ─── Configurações da Steam & Microsserviços ────────────────────
+steam:
+  web-api-key: ${STEAM_WEB_API_KEY:DEV_KEY}
+  auto-fetch-interval-ms: 300000
+
+services:
+  parser-url: ${SERVICES_PARSER_URL:http://localhost:8081}
+  bot-url: ${SERVICES_BOT_URL:http://localhost:3000}
+
 # ─── Logging ─────────────────────────────────────────────────────
 logging:
   level:

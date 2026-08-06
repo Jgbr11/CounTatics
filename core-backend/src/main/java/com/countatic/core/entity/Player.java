@@ -58,6 +58,34 @@ public class Player {
     @Column(length = 512)
     private String avatarUrl;
 
+    // ─── Autenticação Valve (CS2 Match Sharing API) ───────────────────
+
+    /**
+     * Game Authentication Code (código de autenticação gerado na página gamedata da Steam).
+     * Exemplo: "AAAA-BBBB-CCCC" (18 caracteres)
+     */
+    @Column(length = 32)
+    private String authCode;
+
+    /**
+     * Último código de compartilhamento de partida conhecido da Valve.
+     * Exemplo: "CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx" (34 caracteres)
+     */
+    @Column(length = 64)
+    private String latestShareCode;
+
+    /**
+     * Indica se a busca automática de partidas está ativa para este jogador.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean autoFetchEnabled = false;
+
+    /**
+     * Timestamp da última tentativa de consulta à API da Valve para este jogador.
+     */
+    private Instant lastPolledAt;
+
     /**
      * Timestamp da primeira vez que este jogador foi registrado no sistema.
      */

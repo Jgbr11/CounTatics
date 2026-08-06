@@ -81,12 +81,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - ./steam-bot/.env
     environment:
       BOT_PORT: "3000"
-      STEAM_USERNAME: ${STEAM_USERNAME:-seu_usuario_steam}
-      STEAM_PASSWORD: ${STEAM_PASSWORD:-sua_senha_steam}
-      STEAM_SHARED_SECRET: ${STEAM_SHARED_SECRET:-}
-      LOG_LEVEL: info
     networks:
       - countatic-net
 

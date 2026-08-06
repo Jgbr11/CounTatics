@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.countatic.core.service.MatchAnalysisServiceTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.046 s -- in com.countatic.core.service.MatchAnalysisServiceTest

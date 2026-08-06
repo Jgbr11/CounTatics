@@ -27,4 +27,12 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
      * @return true se o jogador já está cadastrado
      */
     boolean existsBySteamId64(String steamId64);
+
+    /**
+     * Busca todos os jogadores que possuem auto-fetch habilitado,
+     * Auth Code cadastrado e um Share Code inicial.
+     *
+     * @return lista de jogadores elegíveis para consulta automática na Valve
+     */
+    java.util.List<Player> findByAutoFetchEnabledTrueAndAuthCodeIsNotNullAndLatestShareCodeIsNotNull();
 }

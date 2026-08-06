@@ -10,11 +10,13 @@ RUN apk add --no-cache git
 WORKDIR /app
 
 # Copiar módulos primeiro para cache de dependências
-COPY go.mod go.sum ./
+COPY go.mod ./
+COPY go.sum* ./
 RUN go mod download
 
-# Copiar código fonte e compilar
+# Copiar código fonte, atualizar dependências e compilar
 COPY . .
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /demo-parser ./cmd/server
 
 # Stage 2: Runtime (imagem mínima)

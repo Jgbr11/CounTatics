@@ -54,7 +54,7 @@ func (dp *DemoParser) Parse(reader io.Reader) (*models.ParsedDemo, error) {
 
 	result.MapName = header.MapName
 	result.ServerName = header.ServerName
-	result.TickRate = int(header.TickRate())
+	result.TickRate = int(p.TickRate())
 	result.DurationSeconds = int(header.PlaybackTime.Seconds())
 	result.PlayedAt = time.Now().UTC().Format(time.RFC3339)
 
@@ -320,7 +320,7 @@ func roundEndReasonToString(reason events.RoundEndReason) string {
 	switch reason {
 	case events.RoundEndReasonCTWin:
 		return "CT_WIN_ELIMINATION"
-	case events.RoundEndReasonTWin:
+	case events.RoundEndReasonTerroristsWin:
 		return "TR_WIN_ELIMINATION"
 	case events.RoundEndReasonTargetBombed:
 		return "BOMB_EXPLODED"
@@ -328,7 +328,7 @@ func roundEndReasonToString(reason events.RoundEndReason) string {
 		return "BOMB_DEFUSED"
 	case events.RoundEndReasonCTSurrender:
 		return "CT_WIN_TIME"
-	case events.RoundEndReasonTSurrender:
+	case events.RoundEndReasonTerroristsSurrender:
 		return "TR_WIN_ELIMINATION"
 	case events.RoundEndReasonTargetSaved:
 		return "TARGET_SAVED"

@@ -89,6 +89,34 @@ export function createRouter(steamClient: SteamClientManager): Router {
     }
   });
 
+  // ─── POST /steam-guard ─────────────────────────────────────────
+  // Permite enviar o código 2FA (Steam Guard) enviado para o e-mail via HTTP.
+  router.post("/steam-guard", (req: Request, res: Response) => {
+    const { code } = req.body as { code?: string };
+
+    if (!code) {
+      res.status(400).json({
+        success: false,
+        error: "Campo 'code' (string) é obrigatório no JSON body",
+      });
+      return;
+    }
+
+    const applied = steamClient.submitSteamGuardCode(code);
+    if (applied) {
+      res.status(200).json({
+        success: true,
+        message: `Código Steam Guard '${code}' submetido com sucesso! Autenticando...`,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: "O bot não está aguardando código 2FA no momento (ou já se encontra logado).",
+        status: steamClient.getStatus(),
+      });
+    }
+  });
+
   // ─── GET /health ───────────────────────────────────────────────
   router.get("/health", (_req: Request, res: Response) => {
     const status = steamClient.getStatus();
@@ -109,6 +137,8 @@ export function createRouter(steamClient: SteamClientManager): Router {
       service: "countatic-steam-bot",
       steamStatus: steamClient.getStatus(),
       ready: steamClient.isReady(),
+      waitingGuard: steamClient.isWaitingSteamGuard(),
+      pendingDomain: steamClient.getPendingGuardDomain(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       timestamp: new Date().toISOString(),

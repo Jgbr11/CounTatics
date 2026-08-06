@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: countatic-core-backend-test
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  datasource:
+    url: jdbc:h2:mem:countatic_testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+steam:
+  web-api-key: TEST_API_KEY
+  auto-fetch-interval-ms: 600000
+
+services:
+  parser-url: http://localhost:8081
+  bot-url: http://localhost:3000
