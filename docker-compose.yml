@@ -1,0 +1,103 @@
+name: countatic
+
+services:
+  # ═════════════════════════════════════════════════════════════════
+  # 1. BANCO DE DADOS RELACIONAL (MySQL 8.4)
+  # ═════════════════════════════════════════════════════════════════
+  mysql-db:
+    image: mysql:8.4
+    container_name: countatic-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: countatic_root_dev
+      MYSQL_DATABASE: countatic
+      MYSQL_USER: countatic
+      MYSQL_PASSWORD: countatic_dev
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - countatic-net
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -pcountatic_root_dev || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ═════════════════════════════════════════════════════════════════
+  # 2. CORE BACKEND (Java 21 / Spring Boot) — O Cérebro
+  # ═════════════════════════════════════════════════════════════════
+  core-backend:
+    build:
+      context: ./core-backend
+      dockerfile: Dockerfile
+    container_name: countatic-core-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/countatic?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: countatic
+      SPRING_DATASOURCE_PASSWORD: countatic_dev
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVICES_PARSER_URL: http://parser-service:8081
+      SERVICES_BOT_URL: http://steam-bot:3000
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      parser-service:
+        condition: service_started
+      steam-bot:
+        condition: service_started
+    networks:
+      - countatic-net
+
+  # ═════════════════════════════════════════════════════════════════
+  # 3. DEMO PARSER (Go / demoinfocs-golang) — O Worker
+  # ═════════════════════════════════════════════════════════════════
+  parser-service:
+    build:
+      context: ./demo-parser
+      dockerfile: Dockerfile
+    container_name: countatic-demo-parser
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      PARSER_PORT: "8081"
+    networks:
+      - countatic-net
+
+  # ═════════════════════════════════════════════════════════════════
+  # 4. STEAM BOT (TypeScript / Node.js) — O Mensageiro
+  # ═════════════════════════════════════════════════════════════════
+  steam-bot:
+    build:
+      context: ./steam-bot
+      dockerfile: Dockerfile
+    container_name: countatic-steam-bot
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      BOT_PORT: "3000"
+      STEAM_USERNAME: ${STEAM_USERNAME:-seu_usuario_steam}
+      STEAM_PASSWORD: ${STEAM_PASSWORD:-sua_senha_steam}
+      STEAM_SHARED_SECRET: ${STEAM_SHARED_SECRET:-}
+      LOG_LEVEL: info
+    networks:
+      - countatic-net
+
+# ═════════════════════════════════════════════════════════════════
+# REDES E VOLUMES
+# ═════════════════════════════════════════════════════════════════
+networks:
+  countatic-net:
+    driver: bridge
+    name: countatic-net
+
+volumes:
+  mysql-data:
+    name: countatic-mysql-data
