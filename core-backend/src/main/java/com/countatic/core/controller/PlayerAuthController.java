@@ -108,4 +108,66 @@ public class PlayerAuthController {
                 "latestShareCode", player.getLatestShareCode()
         ));
     }
+
+    /**
+     * Endpoint para avançar rapidamente até a partida mais recente do jogador,
+     * pulando todas as partidas antigas sem processá-las ou enviar notificações.
+     *
+     * <p>Útil quando o jogador cadastra um Share Code antigo e o sistema precisa
+     * "alcançar" a partida mais recente sem spammar notificações.</p>
+     */
+    @PostMapping("/{steamId}/skip-to-latest")
+    public ResponseEntity<?> skipToLatest(@PathVariable("steamId") String steamId) {
+        log.info("Solicitação de skip-to-latest para o jogador {}", steamId);
+
+        Optional<Player> existing = playerRepository.findBySteamId64(steamId);
+        if (existing.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Player player = existing.get();
+        if (player.getAuthCode() == null || player.getLatestShareCode() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", "Jogador não possui Auth Code ou Share Code cadastrados."
+            ));
+        }
+
+        String currentCode = player.getLatestShareCode();
+        int skippedCount = 0;
+        final int maxIterations = 500; // Segurança contra loop infinito
+
+        log.info("Avançando share codes a partir de: {}", currentCode);
+
+        for (int i = 0; i < maxIterations; i++) {
+            String nextCode = fetcherScheduler.getValveApiService()
+                    .fetchNextMatchShareCode(player.getSteamId64(), player.getAuthCode(), currentCode);
+
+            if (nextCode == null || nextCode.equalsIgnoreCase(currentCode)) {
+                // Não há mais partidas — estamos em dia!
+                break;
+            }
+
+            currentCode = nextCode;
+            skippedCount++;
+            log.debug("Skip #{}: {}", skippedCount, nextCode);
+        }
+
+        // Salvar o share code mais recente no banco
+        player.setLatestShareCode(currentCode);
+        playerRepository.save(player);
+
+        log.info("✅ Skip-to-latest concluído para {}. {} partidas puladas. Share code atual: {}",
+                player.getDisplayName(), skippedCount, currentCode);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "steamId", steamId,
+                "skippedMatches", skippedCount,
+                "latestShareCode", currentCode,
+                "message", skippedCount > 0
+                        ? String.format("%d partidas antigas puladas. Sistema em dia!", skippedCount)
+                        : "Sistema já estava em dia. Nenhuma partida para pular."
+        ));
+    }
 }

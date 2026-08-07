@@ -6,6 +6,7 @@ import express from "express";
 import { config } from "./config";
 import { SteamClientManager } from "./steam/client";
 import { createRouter } from "./routes/notify";
+import { createMatchRoutes } from "./routes/match";
 import logger from "./utils/logger";
 
 /**
@@ -50,15 +51,17 @@ async function main(): Promise<void> {
 
   // Montar rotas
   app.use("/", createRouter(steamClient));
+  app.use("/", createMatchRoutes(steamClient));
 
   // ─── 3. Iniciar servidor HTTP ───────────────────────────────────
   const port = config.server.port;
   const server = app.listen(port, () => {
     logger.info(`🚀 Servidor HTTP iniciado na porta ${port}`);
     logger.info(`   Endpoints disponíveis:`);
-    logger.info(`   POST /notify  — Enviar mensagem para jogador`);
-    logger.info(`   GET  /health  — Health check do bot`);
-    logger.info(`   GET  /status  — Status detalhado`);
+    logger.info(`   POST /notify      — Enviar mensagem para jogador`);
+    logger.info(`   POST /match-info  — Consultar stats de partida via GC`);
+    logger.info(`   GET  /health      — Health check do bot`);
+    logger.info(`   GET  /status      — Status detalhado`);
     logger.info("");
     logger.info("Aguardando webhooks do Core Backend (Java)...");
   });

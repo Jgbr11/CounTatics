@@ -1,5 +1,6 @@
 import SteamUser from "steam-user";
 import SteamID from "steamid";
+import GlobalOffensive from "globaloffensive";
 import fs from "fs";
 import path from "path";
 import { config } from "../config";
@@ -14,7 +15,34 @@ export enum SteamClientStatus {
   WAITING_STEAM_GUARD = "WAITING_STEAM_GUARD",
   CONNECTED = "CONNECTED",
   LOGGED_IN = "LOGGED_IN",
+  GC_CONNECTED = "GC_CONNECTED",
   ERROR = "ERROR",
+}
+
+/**
+ * Informações de uma partida retornadas pelo Game Coordinator do CS2.
+ */
+export interface GCMatchInfo {
+  matchId: string;
+  matchDuration: number;
+  mapName: string;
+  matchResult: string;
+  roundsWon: number;
+  roundsLost: number;
+  demoUrl: string | null;
+  players: GCPlayerStats[];
+}
+
+export interface GCPlayerStats {
+  steamId64: string;
+  playerName: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  headshots: number;
+  mvps: number;
+  score: number;
+  team: string;
 }
 
 /**
@@ -31,6 +59,8 @@ export interface SendMessageResult {
  */
 export class SteamClientManager {
   private client: SteamUser;
+  private csgo: GlobalOffensive;
+  private gcReady: boolean = false;
   private status: SteamClientStatus = SteamClientStatus.DISCONNECTED;
   private reconnectAttempts = 0;
   private readonly maxReconnectAttempts = 5;
@@ -46,7 +76,9 @@ export class SteamClientManager {
       renewRefreshTokens: true,
     });
 
+    this.csgo = new GlobalOffensive(this.client);
     this.registerEventHandlers();
+    this.registerGCEventHandlers();
   }
 
   /**
@@ -64,6 +96,10 @@ export class SteamClientManager {
       logger.info(`   SteamID: ${this.client.steamID?.toString()}`);
 
       this.client.setPersona(SteamUser.EPersonaState.Online);
+
+      // Lançar o CS2 para conectar ao Game Coordinator
+      logger.info("🎮 Lançando CS2 (appid 730) para conectar ao Game Coordinator...");
+      this.client.gamesPlayed([730]);
     });
 
     // ─── Refresh Token gerado ───────────────────────────────────
@@ -145,6 +181,133 @@ export class SteamClientManager {
     // ─── Mensagem recebida ───────────────────────────────────────
     this.client.chat.on("friendMessage", (msg: { steamid_friend: any; message: string }) => {
       logger.debug(`📩 Mensagem recebida de ${msg.steamid_friend}: ${msg.message}`);
+    });
+  }
+
+  /**
+   * Registra os event handlers do Game Coordinator do CS2.
+   */
+  private registerGCEventHandlers(): void {
+    this.csgo.on("connectedToGC", () => {
+      this.gcReady = true;
+      this.status = SteamClientStatus.GC_CONNECTED;
+      logger.info("🎮 Conectado ao Game Coordinator do CS2!");
+      logger.info("   Pronto para consultar informações de partidas.");
+    });
+
+    this.csgo.on("disconnectedFromGC", (reason: any) => {
+      this.gcReady = false;
+      if (this.status === SteamClientStatus.GC_CONNECTED) {
+        this.status = SteamClientStatus.LOGGED_IN;
+      }
+      logger.warn(`⚠️ Desconectado do Game Coordinator do CS2 (reason: ${reason})`);
+    });
+
+    this.csgo.on("error", (err: any) => {
+      logger.error(`❌ Erro no Game Coordinator: ${err}`);
+    });
+  }
+
+  /**
+   * Solicita informações de uma partida ao Game Coordinator do CS2 usando o share code.
+   *
+   * @param shareCode Share code completo (CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx)
+   * @returns Promise com as informações da partida ou null se não encontrada
+   */
+  requestMatchInfo(shareCode: string): Promise<GCMatchInfo | null> {
+    return new Promise((resolve) => {
+      if (!this.gcReady) {
+        logger.error("GC do CS2 não está conectado. Não é possível consultar match info.");
+        resolve(null);
+        return;
+      }
+
+      logger.info(`🔍 Solicitando informações da partida ao GC: ${shareCode}`);
+
+      const timeout = setTimeout(() => {
+        logger.warn(`⏰ Timeout ao aguardar resposta do GC para ${shareCode}`);
+        resolve(null);
+      }, 15000); // 15s timeout
+
+      this.csgo.once("matchList", (matches: any[], _deSerializedResponse: any) => {
+        clearTimeout(timeout);
+
+        if (!matches || matches.length === 0) {
+          logger.warn(`Nenhuma partida retornada pelo GC para ${shareCode}`);
+          resolve(null);
+          return;
+        }
+
+        const match = matches[0];
+        logger.info(`✅ Informações da partida recebidas do GC!`);
+
+        try {
+          const roundstatsAll = match.roundstatsall || match.roundstats_legacy || [];
+          const lastRoundStats = roundstatsAll.length > 0 ? roundstatsAll[roundstatsAll.length - 1] : (match.roundstats_legacy || null);
+
+          // Extrair stats dos jogadores do último round (acumuladas)
+          const players: GCPlayerStats[] = [];
+          const reservations = match.roundstats_legacy?.reservation || match.watchablematchinfo || {};
+
+          if (lastRoundStats && lastRoundStats.reservation) {
+            const accountIds = lastRoundStats.reservation.account_ids || [];
+            const kills = lastRoundStats.kills || [];
+            const deaths = lastRoundStats.deaths || [];
+            const assists = lastRoundStats.assists || [];
+            const scores = lastRoundStats.scores || [];
+            const mvps = lastRoundStats.mvps || [];
+            const enemyHeadshots = lastRoundStats.enemy_headshots || [];
+
+            for (let i = 0; i < accountIds.length; i++) {
+              const accountId = accountIds[i];
+              // Converter AccountID para SteamID64
+              const steamId64 = accountId ? new SteamID(`[U:1:${accountId}]`).getSteamID64() : "0";
+
+              players.push({
+                steamId64,
+                playerName: `Player${i + 1}`,
+                kills: kills[i] || 0,
+                deaths: deaths[i] || 0,
+                assists: assists[i] || 0,
+                headshots: enemyHeadshots[i] || 0,
+                mvps: mvps[i] || 0,
+                score: scores[i] || 0,
+                team: i < 5 ? "CT" : "TR",
+              });
+            }
+          }
+
+          // Extrair informações da partida
+          const mapName = match.watchablematchinfo?.game_map_group || 
+                         match.watchablematchinfo?.game_map || 
+                         "unknown";
+
+          // Demo URL
+          const demoUrl = match.roundstats_legacy?.map 
+            ? `http://replay${match.roundstats_legacy.map}.valve.net/730/${match.roundstats_legacy.map}.dem.bz2`
+            : null;
+
+          const matchInfo: GCMatchInfo = {
+            matchId: match.matchid?.toString() || "0",
+            matchDuration: match.matchtime || 0,
+            mapName: mapName.replace("mg_", "").replace("de_", "de_"),
+            matchResult: "completed",
+            roundsWon: lastRoundStats?.team_scores?.[0] || 0,
+            roundsLost: lastRoundStats?.team_scores?.[1] || 0,
+            demoUrl: demoUrl,
+            players,
+          };
+
+          logger.info(`   Mapa: ${matchInfo.mapName} | Placar: ${matchInfo.roundsWon}-${matchInfo.roundsLost} | Jogadores: ${matchInfo.players.length}`);
+          resolve(matchInfo);
+        } catch (err) {
+          logger.error(`Erro ao parsear resposta do GC: ${err}`);
+          resolve(null);
+        }
+      });
+
+      // Solicitar a partida ao GC usando o share code
+      this.csgo.requestGame(shareCode);
     });
   }
 

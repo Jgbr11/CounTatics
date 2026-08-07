@@ -2,6 +2,7 @@ package com.countatic.core.service;
 
 import com.countatic.core.dto.stats.MatchAnalysisResult;
 import com.countatic.core.dto.stats.PlayerStatResult;
+import com.countatic.core.dto.valve.GCMatchInfoDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -109,6 +110,76 @@ public class SteamBotClientService {
             log.error("Erro ao enviar notificação simples para {}: {}", steamId64, e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Consulta o Game Coordinator do CS2 via Steam Bot para obter estatísticas de uma partida.
+     *
+     * @param shareCode share code da partida (CSGO-xxxxx-...)
+     * @return informações da partida ou null se não disponível
+     */
+    public GCMatchInfoDTO.MatchInfo requestMatchInfo(String shareCode) {
+        log.info("🔍 Consultando GC para share code: {}", shareCode);
+
+        try {
+            GCMatchInfoDTO response = restClient.post()
+                    .uri("/match-info")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("shareCode", shareCode))
+                    .retrieve()
+                    .body(GCMatchInfoDTO.class);
+
+            if (response != null && response.isSuccess() && response.getMatchInfo() != null) {
+                log.info("✅ Informações da partida recebidas do GC para {}", shareCode);
+                return response.getMatchInfo();
+            }
+
+            log.warn("GC não retornou informações para {}", shareCode);
+            return null;
+        } catch (Exception e) {
+            log.error("Erro ao consultar GC para {}: {}", shareCode, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Formata um relatório de estatísticas básicas do GC para envio via chat da Steam.
+     */
+    public String formatGCStatsReport(String steamId64, GCMatchInfoDTO.MatchInfo matchInfo) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("🎯 CounTatic — Relatório de Partida\n\n");
+        sb.append("📍 Mapa: ").append(matchInfo.getMapName());
+        sb.append(" | Placar: ").append(matchInfo.getRoundsWon()).append("-").append(matchInfo.getRoundsLost());
+        sb.append("\n");
+
+        if (matchInfo.getMatchDuration() > 0) {
+            sb.append("⏱️ Duração: ").append(matchInfo.getMatchDuration() / 60).append(" min\n");
+        }
+        sb.append("\n");
+
+        // Encontrar stats do jogador solicitante
+        if (matchInfo.getPlayers() != null) {
+            for (GCMatchInfoDTO.PlayerStats player : matchInfo.getPlayers()) {
+                if (steamId64.equals(player.getSteamId64())) {
+                    double hsPercent = player.getKills() > 0
+                            ? (player.getHeadshots() * 100.0 / player.getKills())
+                            : 0;
+
+                    sb.append("📊 Suas Estatísticas:\n");
+                    sb.append("  🔫 K/D/A: ").append(player.getKills()).append("/")
+                            .append(player.getDeaths()).append("/")
+                            .append(player.getAssists()).append("\n");
+                    sb.append("  🎯 Headshots: ").append(player.getHeadshots())
+                            .append(String.format(" (%.1f%%)", hsPercent)).append("\n");
+                    sb.append("  ⭐ MVPs: ").append(player.getMvps()).append("\n");
+                    sb.append("  💀 Score: ").append(player.getScore()).append("\n");
+                    break;
+                }
+            }
+        }
+
+        sb.append("\nGLHF na próxima! 🚀");
+        return sb.toString();
     }
 
     /**
