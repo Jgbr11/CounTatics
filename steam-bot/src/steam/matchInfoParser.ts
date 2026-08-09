@@ -141,6 +141,34 @@ export interface RankInfo {
   rankTypeId: number | null;
 }
 
+/** `rank_type_id` da fila Premier — onde o `rank_id` é o CS Rating literal. */
+export const RANK_TYPE_PREMIER = 11;
+
+/**
+ * Extrai o CS Rating (Premier) do perfil devolvido por `requestPlayersProfile`.
+ *
+ * O perfil traz um array `rankings` com uma entrada por fila (competitivo por
+ * mapa, Wingman, Premier...). Só a de `rank_type_id === 11` interessa: nela o
+ * `rank_id` é o número de 4-5 dígitos que o jogo exibe (ex: 10096). Nas demais
+ * o `rank_id` é um índice de patente (1-18), que não é comparável.
+ *
+ * Importante: este é o rating ATUAL, não o da época da partida. Para partidas
+ * recentes a diferença é irrelevante; para partidas antigas, é uma aproximação.
+ */
+export function extractPremierRating(profile: any): number | null {
+  const rankings: any[] = profile?.rankings ?? [];
+
+  for (const r of rankings) {
+    if (r?.rank_type_id === RANK_TYPE_PREMIER) {
+      const rating = r.rank_id;
+      // rating 0 = ainda não calibrado; não é o mesmo que "rating baixo".
+      return typeof rating === "number" && rating > 0 ? rating : null;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Extrai o rating de cada jogador a partir de `reservation.rankings`.
  *
@@ -256,6 +284,9 @@ export async function parseGcMatch(
     demoUrl: demo.url,
     players,
     averageRank: averageRank(players),
+    // Preenchido pelo chamador com uma consulta ao perfil do GC —
+    // depende de rede, então fica fora desta função pura.
+    requesterRank: null,
   };
 
   return { matchInfo, warnings };

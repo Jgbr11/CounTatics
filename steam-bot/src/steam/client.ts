@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { config } from "../config";
 import logger from "../utils/logger";
-import { parseGcMatch } from "./matchInfoParser";
+import { parseGcMatch, extractPremierRating } from "./matchInfoParser";
 import type { GCMatchInfo, MatchInfoResult, SendMessageResult } from "./types";
 
 // Reexporta os contratos para não quebrar quem já importava daqui.
@@ -69,6 +69,9 @@ export class SteamClientManager {
   private readonly gcMinRequestIntervalMs = 3000;
   private lastGcRequestAt = 0;
   private gcRequestChain: Promise<void> = Promise.resolve();
+  /** Cache do CS Rating: muda no máximo uma vez por partida. */
+  private readonly ratingCache = new Map<string, { rating: number | null; at: number }>();
+  private readonly ratingCacheTtlMs = 10 * 60 * 1000;
   private readonly tokenFilePath =
     process.env.TOKEN_FILE ?? path.join(process.cwd(), "refreshToken.txt");
 
@@ -450,6 +453,39 @@ export class SteamClientManager {
     });
   }
 
+  /**
+   * Busca o CS Rating (Premier) de um jogador, com cache curto.
+   *
+   * O rating muda no máximo uma vez por partida, então consultar o GC a cada
+   * análise é desperdício — e cada consulta custa 3 s pelo limitador de taxa.
+   * Uma falha aqui nunca derruba a análise: sem rating, a partida é registrada
+   * sem faixa de comparação, o que é melhor do que perder a partida.
+   */
+  private async fetchPremierRating(steamId64: string): Promise<number | null> {
+    const cached = this.ratingCache.get(steamId64);
+    if (cached && Date.now() - cached.at < this.ratingCacheTtlMs) {
+      return cached.rating;
+    }
+
+    try {
+      const profile = await this.requestPlayerProfile(steamId64);
+      const rating = extractPremierRating(profile);
+
+      if (rating === null) {
+        logger.warn(`[GC] Sem CS Rating de Premier para ${steamId64} ` +
+          `(conta não calibrada ou perfil indisponível).`);
+      } else {
+        logger.info(`[GC] CS Rating de ${steamId64}: ${rating}`);
+      }
+
+      this.ratingCache.set(steamId64, { rating, at: Date.now() });
+      return rating;
+    } catch (err) {
+      logger.warn(`[GC] Falha ao obter o CS Rating de ${steamId64}: ${err}`);
+      return null;
+    }
+  }
+
   /** Garante um intervalo mínimo entre chamadas consecutivas ao GC. */
   private async throttleGcRequest(): Promise<void> {
     const previous = this.gcRequestChain;
@@ -487,6 +523,15 @@ export class SteamClientManager {
 
     for (const w of warnings) {
       logger.warn(`[GC] ${shareCode}: ${w.message}`);
+    }
+
+    // O CS Rating não vem na resposta da partida (reservation.rankings chega
+    // vazio em CS2), então é buscado no perfil. Uma única consulta basta:
+    // o matchmaking pareia jogadores de nível parecido, então o rating de quem
+    // pediu caracteriza o nível da partida inteira. Consultar os 10 levaria
+    // ~30 s por causa do rate limit do GC, sem ganho real de precisão.
+    if (requesterSteamId) {
+      matchInfo.requesterRank = await this.fetchPremierRating(requesterSteamId);
     }
 
     logger.info(

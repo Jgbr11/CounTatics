@@ -145,6 +145,18 @@ final class MatchPageTemplate {
               smokesPerRound:      ["Smokes / round",         v => v.toFixed(2)],
               totalHEThrown:       ["HEs",                    v => v.toFixed(0)],
               totalMolotovThrown:  ["Molotovs",               v => v.toFixed(0)],
+
+              // Impacto
+              adr:                 ["ADR",                    v => v.toFixed(1)],
+              totalDamage:         ["Dano total",             v => v.toFixed(0)],
+              tradeKills:          ["Trade kills",            v => v.toFixed(0)],
+              tradedDeaths:        ["Mortes vingadas",        v => v.toFixed(0)],
+              openingDuels:        ["Primeiros duelos",       v => v.toFixed(0)],
+              openingDuelsWon:     ["Primeiros duelos ganhos", v => v.toFixed(0)],
+              openingDuelWinRate:  ["Taxa 1º duelo",          v => v.toFixed(1) + "%"],
+              clutchesWon:         ["Clutches ganhos",        v => v.toFixed(0)],
+              clutchesAttempted:   ["Clutches tentados",      v => v.toFixed(0)],
+              clutchWinRate:       ["Taxa de clutch",         v => v.toFixed(1) + "%"],
             };
 
             const fmt = (k, v) => {

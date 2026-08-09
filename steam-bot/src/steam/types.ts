@@ -24,13 +24,22 @@ export interface GCMatchInfo {
   players: GCPlayerStats[];
 
   /**
-   * Média dos ratings dos jogadores da partida.
+   * Média dos ratings vindos de `reservation.rankings`.
    *
-   * O matchmaking pareia gente de nível parecido, então esta média é uma boa
-   * aproximação do nível da partida — inclusive para jogadores cujo rating
-   * individual o GC não informou.
+   * Em CS2 esse campo costuma chegar VAZIO — o GC não informa ranking na
+   * resposta da partida. Fica aqui porque o protobuf prevê, mas na prática o
+   * nível da partida vem de {@link requesterRank}.
    */
   averageRank: number | null;
+
+  /**
+   * CS Rating (Premier) de quem solicitou, consultado no perfil do GC.
+   *
+   * É o que define a faixa de comparação. Como o matchmaking pareia jogadores
+   * de nível parecido, uma única consulta caracteriza o nível da partida
+   * inteira — evitando 10 consultas ao GC, que levariam ~30 s pelo rate limit.
+   */
+  requesterRank: number | null;
 }
 
 export interface GCPlayerStats {

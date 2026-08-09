@@ -42,6 +42,7 @@ C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countat
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\SteamBotClientService.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\ValveApiService.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\impl\AimStatStrategy.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\impl\ImpactStatStrategy.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\impl\UtilityStatStrategy.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\strategy\StatCalculationStrategy.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\util\CS2ShareCodeDecoder.java
