@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/golang/geo/r3"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	common "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -291,19 +294,44 @@ func (dp *DemoParser) Parse(reader io.Reader) (result *models.ParsedDemo, err er
 				return
 			}
 
-			currentRound.Events = append(currentRound.Events, models.ParsedEvent{
+			// Posição dos OLHOS, não dos pés: o ângulo até a cabeça do inimigo
+			// só faz sentido a partir de onde a mira realmente está.
+			olhos, ok := e.Shooter.PositionEyes()
+			if !ok {
+				olhos = e.Shooter.Position()
+			}
+
+			event := models.ParsedEvent{
 				EventType:      "WEAPON_FIRE",
 				Tick:           tick(),
 				ActorSteamID:   steamIDToString(e.Shooter),
 				ActorName:      e.Shooter.Name,
 				ActorSide:      teamToString(e.Shooter.Team),
-				ActorPositionX: float64Ptr(e.Shooter.Position().X),
-				ActorPositionY: float64Ptr(e.Shooter.Position().Y),
-				ActorPositionZ: float64Ptr(e.Shooter.Position().Z),
+				ActorPositionX: float64Ptr(olhos.X),
+				ActorPositionY: float64Ptr(olhos.Y),
+				ActorPositionZ: float64Ptr(olhos.Z),
 				ViewAngleX:     float64Ptr(float64(e.Shooter.ViewDirectionX())),
 				ViewAngleY:     float64Ptr(float64(e.Shooter.ViewDirectionY())),
 				Weapon:         weaponToID(e.Weapon),
-			})
+			}
+
+			// Anexa a cabeça do inimigo mais próximo do centro da mira.
+			//
+			// Sem isto o crosshair placement é incalculável: o Java só recebe o
+			// ângulo de visão absoluto, e medir "o pitch estava perto de zero"
+			// avalia se o jogador olhava para o horizonte — não onde o inimigo
+			// estava. Só o Go tem o estado completo do jogo para localizar os
+			// inimigos vivos no instante do disparo.
+			if alvo, achou := inimigoMaisProximoDaMira(p, e.Shooter, olhos); achou {
+				event.VictimSteamID = steamIDToString(alvo.jogador)
+				event.VictimName = alvo.jogador.Name
+				event.VictimSide = teamToString(alvo.jogador.Team)
+				event.VictimPositionX = float64Ptr(alvo.cabeca.X)
+				event.VictimPositionY = float64Ptr(alvo.cabeca.Y)
+				event.VictimPositionZ = float64Ptr(alvo.cabeca.Z)
+			}
+
+			currentRound.Events = append(currentRound.Events, event)
 		})
 	}
 
@@ -500,6 +528,99 @@ func (dp *DemoParser) Parse(reader io.Reader) (result *models.ParsedDemo, err er
 		result.TickRate, totalEvents)
 
 	return result, nil
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CROSSHAIR PLACEMENT
+// ═══════════════════════════════════════════════════════════════════
+
+// coneMaximoGraus limita quais disparos entram na métrica de mira.
+//
+// Um tiro com o inimigo mais próximo a 80° do centro da tela não diz nada
+// sobre posicionamento de mira — é spray às cegas, tiro em parede ou
+// utilitária. Restringir a um cone frontal mantém a métrica falando sobre
+// duelos reais.
+const coneMaximoGraus = 45.0
+
+type alvoNaMira struct {
+	jogador *common.Player
+	cabeca  r3.Vector
+	angulo  float64
+}
+
+// inimigoMaisProximoDaMira localiza, entre os inimigos vivos, aquele cuja
+// cabeça está mais perto do centro da mira no instante do disparo.
+//
+// Escolher o de MENOR erro angular é proposital: assume-se que o jogador
+// mirava em alguém, e esse alguém é o candidato mais plausível.
+func inimigoMaisProximoDaMira(p demoinfocs.Parser, atirador *common.Player,
+	olhos r3.Vector) (alvoNaMira, bool) {
+
+	mira := vetorDaMira(float64(atirador.ViewDirectionX()), float64(atirador.ViewDirectionY()))
+
+	melhor := alvoNaMira{angulo: math.MaxFloat64}
+	achou := false
+
+	for _, outro := range p.GameState().Participants().Playing() {
+		if outro == nil || outro == atirador || !outro.IsAlive() {
+			continue
+		}
+		if outro.Team == atirador.Team {
+			continue
+		}
+
+		cabeca, ok := outro.PositionEyes()
+		if !ok {
+			continue
+		}
+
+		direcao := r3.Vector{
+			X: cabeca.X - olhos.X,
+			Y: cabeca.Y - olhos.Y,
+			Z: cabeca.Z - olhos.Z,
+		}
+
+		norma := direcao.Norm()
+		if norma == 0 {
+			continue
+		}
+
+		cos := (mira.X*direcao.X + mira.Y*direcao.Y + mira.Z*direcao.Z) / norma
+		// Clamp: erro de ponto flutuante pode empurrar para fora de [-1,1]
+		// e fazer Acos devolver NaN.
+		if cos > 1 {
+			cos = 1
+		} else if cos < -1 {
+			cos = -1
+		}
+
+		angulo := math.Acos(cos) * 180 / math.Pi
+		if angulo < melhor.angulo {
+			melhor = alvoNaMira{jogador: outro, cabeca: cabeca, angulo: angulo}
+			achou = true
+		}
+	}
+
+	if !achou || melhor.angulo > coneMaximoGraus {
+		return alvoNaMira{}, false
+	}
+	return melhor, true
+}
+
+// vetorDaMira converte os ângulos de visão da Source num vetor unitário.
+//
+// Convenção da engine: yaw 0° aponta para +X e cresce no sentido
+// anti-horário; pitch é POSITIVO olhando para BAIXO — daí o sinal negativo
+// no eixo Z.
+func vetorDaMira(yawGraus, pitchGraus float64) r3.Vector {
+	yaw := yawGraus * math.Pi / 180
+	pitch := pitchGraus * math.Pi / 180
+
+	return r3.Vector{
+		X: math.Cos(pitch) * math.Cos(yaw),
+		Y: math.Cos(pitch) * math.Sin(yaw),
+		Z: -math.Sin(pitch),
+	}
 }
 
 // ═══════════════════════════════════════════════════════════════════

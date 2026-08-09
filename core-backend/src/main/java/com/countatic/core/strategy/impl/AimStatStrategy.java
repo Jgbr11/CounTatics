@@ -82,9 +82,19 @@ public class AimStatStrategy implements StatCalculationStrategy {
         // NOTA: A fórmula será refinada quando discutirmos a matemática detalhada.
         // Por ora, usamos um cálculo simplificado baseado em threshold de ângulo.
         List<MatchEvent> weaponFires = filterByActorAndType(allEvents, playerId, EventType.WEAPON_FIRE);
-        double crosshairScore = calculateCrosshairPlacement(weaponFires);
+        List<Double> erros = errosAngulares(weaponFires);
+
+        double crosshairScore = calculateCrosshairPlacement(erros);
         metrics.put("crosshairPlacementScore", round2(crosshairScore));
-        insights.put("crosshairPlacementScore", generateCrosshairInsight(crosshairScore));
+
+        // Só publica as métricas de mira se houver disparos avaliáveis.
+        // Devolver 0.0 quando não há dado seria indistinguível de "mira péssima".
+        if (!erros.isEmpty()) {
+            metrics.put("medianCrosshairErrorDegrees", round2(erroAngularMediano(erros)));
+            metrics.put("evaluatedShots", (double) erros.size());
+            insights.put("crosshairPlacementScore",
+                    generateCrosshairInsight(crosshairScore, erroAngularMediano(erros)));
+        }
 
         // ─── 6. Total Kills / Deaths (valores absolutos) ─────────────────
         metrics.put("totalKills", (double) kills.size());
@@ -107,42 +117,94 @@ public class AimStatStrategy implements StatCalculationStrategy {
     // ─── Cálculos Internos ────────────────────────────────────────────
 
     /**
-     * Calcula o score de crosshair placement baseado no ângulo vertical dos disparos.
+     * Erro angular considerado "mira bem posicionada".
      *
-     * <p>Lógica simplificada (placeholder para refinamento futuro):</p>
-     * <ul>
-     *   <li>Coleta o viewAngleY (pitch) de cada WEAPON_FIRE</li>
-     *   <li>Pitch próximo de 0° = nível da cabeça (ideal)</li>
-     *   <li>Score = % de disparos com |pitch| ≤ threshold</li>
-     * </ul>
-     *
-     * @param weaponFires eventos de disparo do jogador
-     * @return score de 0.0 a 100.0
+     * <p>5° a 10 metros equivale a aproximadamente meio corpo de largura —
+     * perto o bastante para que o ajuste até a cabeça seja um micro-movimento,
+     * e não um giro.</p>
      */
-    private double calculateCrosshairPlacement(List<MatchEvent> weaponFires) {
-        if (weaponFires.isEmpty()) {
-            return 0.0;
+    private static final double LIMIAR_BOA_MIRA_GRAUS = 5.0;
+
+    /**
+     * Erro angular entre a mira e a cabeça do inimigo, em graus, para cada disparo.
+     *
+     * <p><b>O que mudou.</b> A versão anterior media o valor absoluto do pitch:
+     * considerava boa mira todo disparo feito perto da linha do horizonte,
+     * <i>ignorando completamente onde o inimigo estava</i>. Um jogador olhando
+     * para uma parede vazia pontuava tão bem quanto um com a mira na cabeça do
+     * adversário. Na prática a métrica media "você olhava para o horizonte".</p>
+     *
+     * <p>Agora o parser Go anexa a cabeça do inimigo mais próximo do centro da
+     * mira (ele tem o estado do jogo; o Java não teria como saber). Aqui o
+     * cálculo é o ângulo entre a direção da visão e a direção até essa cabeça.</p>
+     *
+     * <p>Disparos sem inimigo dentro do cone frontal não entram: spray em
+     * parede e tiro às cegas não dizem nada sobre posicionamento de mira.</p>
+     */
+    private List<Double> errosAngulares(List<MatchEvent> weaponFires) {
+        List<Double> erros = new ArrayList<>();
+
+        for (MatchEvent e : weaponFires) {
+            if (e.getViewAngleX() == null || e.getViewAngleY() == null) continue;
+            if (e.getActorPositionX() == null || e.getVictimPositionX() == null) continue;
+
+            // Direção da mira. Convenção da Source: yaw 0° aponta para +X e
+            // cresce no anti-horário; pitch POSITIVO é para BAIXO.
+            double yaw = Math.toRadians(e.getViewAngleX());
+            double pitch = Math.toRadians(e.getViewAngleY());
+
+            double mx = Math.cos(pitch) * Math.cos(yaw);
+            double my = Math.cos(pitch) * Math.sin(yaw);
+            double mz = -Math.sin(pitch);
+
+            // Direção dos olhos até a cabeça do inimigo.
+            double dx = e.getVictimPositionX() - e.getActorPositionX();
+            double dy = e.getVictimPositionY() - e.getActorPositionY();
+            double dz = e.getVictimPositionZ() - e.getActorPositionZ();
+
+            double norma = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (norma == 0) continue;
+
+            double cos = (mx * dx + my * dy + mz * dz) / norma;
+            // Erro de ponto flutuante pode passar de [-1,1] e fazer acos virar NaN.
+            cos = Math.max(-1.0, Math.min(1.0, cos));
+
+            erros.add(Math.toDegrees(Math.acos(cos)));
         }
 
-        // Threshold: disparos com pitch dentro de ±5° do headshot level
-        // são considerados "bom posicionamento de mira"
-        // TODO: Refinar esta fórmula com dados reais e discussão do cálculo
-        final double GOOD_PLACEMENT_THRESHOLD = 5.0;
+        return erros;
+    }
 
-        long goodPlacementCount = weaponFires.stream()
-                .filter(e -> e.getViewAngleY() != null)
-                .filter(e -> Math.abs(e.getViewAngleY()) <= GOOD_PLACEMENT_THRESHOLD)
-                .count();
+    /**
+     * Score de crosshair placement: % de disparos com a mira a até
+     * {@value #LIMIAR_BOA_MIRA_GRAUS}° da cabeça do inimigo.
+     *
+     * @return 0.0 a 100.0; 0.0 quando não há disparo avaliável
+     */
+    private double calculateCrosshairPlacement(List<Double> erros) {
+        if (erros.isEmpty()) return 0.0;
 
-        long totalWithAngle = weaponFires.stream()
-                .filter(e -> e.getViewAngleY() != null)
-                .count();
+        long bons = erros.stream().filter(a -> a <= LIMIAR_BOA_MIRA_GRAUS).count();
+        return (bons * 100.0) / erros.size();
+    }
 
-        if (totalWithAngle == 0) {
-            return 0.0;
-        }
+    /**
+     * Erro angular mediano, em graus. Menor é melhor.
+     *
+     * <p>Complementa o score percentual: a mediana resiste a outliers (um
+     * disparo com 40° de erro num duelo perdido não afunda o número) e é
+     * diretamente interpretável — "sua mira fica em média a X° da cabeça".</p>
+     */
+    private double erroAngularMediano(List<Double> erros) {
+        if (erros.isEmpty()) return 0.0;
 
-        return (goodPlacementCount * 100.0) / totalWithAngle;
+        List<Double> ordenados = new ArrayList<>(erros);
+        Collections.sort(ordenados);
+
+        int meio = ordenados.size() / 2;
+        return ordenados.size() % 2 == 0
+                ? (ordenados.get(meio - 1) + ordenados.get(meio)) / 2.0
+                : ordenados.get(meio);
     }
 
     // ─── Geração de Insights ──────────────────────────────────────────
@@ -171,14 +233,24 @@ public class AimStatStrategy implements StatCalculationStrategy {
         }
     }
 
-    private String generateCrosshairInsight(double score) {
-        if (score >= 75.0) {
-            return String.format("Crosshair placement excelente (%.1f%%). Sua mira já está posicionada para headshot na maioria dos disparos.", score);
-        } else if (score >= 50.0) {
-            return String.format("Crosshair placement bom (%.1f%%). Tente manter a mira mais na altura da cabeça ao andar pelo mapa.", score);
-        } else {
-            return String.format("Crosshair placement precisa melhorar (%.1f%%). Pratique manter a mira na altura da cabeça constantemente.", score);
+    private String generateCrosshairInsight(double score, double erroMediano) {
+        if (score >= 60.0) {
+            return String.format(
+                    "Crosshair placement excelente: em %.0f%% dos disparos a mira estava a menos de %.0f° "
+                            + "da cabeça (erro mediano de %.1f°).",
+                    score, LIMIAR_BOA_MIRA_GRAUS, erroMediano);
         }
+        if (score >= 35.0) {
+            return String.format(
+                    "Crosshair placement razoável: %.0f%% dos disparos com a mira já perto da cabeça "
+                            + "(erro mediano de %.1f°). Pré-mirar os ângulos antes de cruzá-los reduz esse erro.",
+                    score, erroMediano);
+        }
+        return String.format(
+                "Crosshair placement a melhorar: erro mediano de %.1f° até a cabeça do inimigo. "
+                        + "Ande com a mira na altura da cabeça e pré-mirando os cantos — assim o duelo "
+                        + "vira um micro-ajuste em vez de um giro.",
+                erroMediano);
     }
 
     // ─── Utilitários ──────────────────────────────────────────────────

@@ -83,6 +83,51 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
                 .build();
     }
 
+    /**
+     * Janela para associar um cegamento à flash que o causou.
+     *
+     * <p>{@code FlashExplode} e {@code PlayerFlashed} são emitidos praticamente
+     * no mesmo tick; a folga cobre variação de tick rate e ordenação de eventos
+     * sem correr o risco de capturar a flash seguinte, que dificilmente estoura
+     * em menos de um segundo.</p>
+     */
+    private static final int JANELA_FLASH_TICKS = 64;
+
+    /**
+     * Conta quantas flashes lançadas cegaram ao menos um inimigo.
+     *
+     * <p>Cada cegamento é atribuído à flash mais próxima no tempo, e cada flash
+     * conta no máximo uma vez — é isso que impede a métrica de passar de 100%.</p>
+     */
+    private long contarFlashesEfetivas(List<MatchEvent> flashesThrown, List<MatchEvent> flashBlinds) {
+        Set<Integer> ticksEfetivos = new HashSet<>();
+
+        for (MatchEvent blind : flashBlinds) {
+            if (!Boolean.TRUE.equals(blind.getIsEnemyFlash())) continue;
+            if (blind.getTick() == null) continue;
+
+            MatchEvent maisProxima = null;
+            int menorDistancia = Integer.MAX_VALUE;
+
+            for (MatchEvent flash : flashesThrown) {
+                if (flash.getTick() == null) continue;
+
+                int distancia = Math.abs(blind.getTick() - flash.getTick());
+                if (distancia <= JANELA_FLASH_TICKS && distancia < menorDistancia) {
+                    menorDistancia = distancia;
+                    maisProxima = flash;
+                }
+            }
+
+            if (maisProxima != null) {
+                // Set por tick: a mesma flash cegando vários inimigos entra uma vez só.
+                ticksEfetivos.add(maisProxima.getTick());
+            }
+        }
+
+        return ticksEfetivos.size();
+    }
+
     // ─── Flash Metrics ────────────────────────────────────────────────
 
     private void calculateFlashMetrics(List<MatchEvent> allEvents, Long playerId,
@@ -101,13 +146,29 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
                 .filter(e -> Boolean.FALSE.equals(e.getIsEnemyFlash()))
                 .count();
 
-        // Flash Efficiency: % de flashes que cegaram pelo menos um inimigo
-        // Aqui usamos a proporção de blinds em inimigos vs. total de flashes lançadas
+        // ─── Flash Efficiency ────────────────────────────────────────
+        // % de flashes lançadas que cegaram AO MENOS UM inimigo.
+        //
+        // A versão anterior dividia o número de CEGAMENTOS pelo número de
+        // FLASHES: uma única flash que pegasse 3 inimigos rendia 300%, e o
+        // número deixava de ser uma porcentagem. Contar flashes efetivas exige
+        // correlacionar cada cegamento à flash que o causou, o que é feito por
+        // proximidade de tick — FlashExplode e PlayerFlashed ocorrem
+        // praticamente no mesmo instante.
+        long flashesEfetivas = contarFlashesEfetivas(flashesThrown, flashBlinds);
+
         double flashEfficiency = totalFlashesThrown > 0
-                ? (enemyBlinds * 100.0) / totalFlashesThrown
+                ? (flashesEfetivas * 100.0) / totalFlashesThrown
                 : 0.0;
         metrics.put("flashEfficiency", round2(flashEfficiency));
         insights.put("flashEfficiency", generateFlashEfficiencyInsight(flashEfficiency));
+
+        // Quantos inimigos cada flash cega, em média. Diferente da eficiência,
+        // esta razão passa de 1 legitimamente — é justamente o que mede uma
+        // flash bem colocada, que pega o time inteiro.
+        metrics.put("enemyBlindsPerFlash", totalFlashesThrown > 0
+                ? round2((double) enemyBlinds / totalFlashesThrown)
+                : 0.0);
 
         // Team Flash Rate: % de blinds que foram em aliados
         long totalBlinds = enemyBlinds + teamBlinds;
