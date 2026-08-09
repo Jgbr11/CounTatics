@@ -54,8 +54,11 @@ export function createRouter(steamClient: SteamClientManager): Router {
       return;
     }
 
-    // ─── Verificar se o bot está conectado ──────────────────────
-    if (!steamClient.isReady()) {
+    // ─── Verificar se o bot está logado ─────────────────────────
+    // Enviar chat depende SÓ do login. Não checar o GC aqui — foi
+    // exatamente esse acoplamento que fazia todo /notify virar 503
+    // no instante em que o Game Coordinator conectava.
+    if (!steamClient.isLoggedIn()) {
       const status = steamClient.getStatus();
       logger.error(`Bot não está pronto para enviar mensagens (status: ${status})`);
       res.status(503).json({
@@ -120,12 +123,15 @@ export function createRouter(steamClient: SteamClientManager): Router {
   // ─── GET /health ───────────────────────────────────────────────
   router.get("/health", (_req: Request, res: Response) => {
     const status = steamClient.getStatus();
-    const isReady = steamClient.isReady();
+    const loggedIn = steamClient.isLoggedIn();
 
-    res.status(isReady ? 200 : 503).json({
+    // Saúde do serviço = consegue entregar mensagem = está logado.
+    // `gcReady` é informativo: sem GC o bot ainda notifica, só não consulta stats.
+    res.status(loggedIn ? 200 : 503).json({
       service: "countatic-steam-bot",
       status,
-      ready: isReady,
+      ready: loggedIn,
+      gcReady: steamClient.isGcReady(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -136,7 +142,8 @@ export function createRouter(steamClient: SteamClientManager): Router {
     res.status(200).json({
       service: "countatic-steam-bot",
       steamStatus: steamClient.getStatus(),
-      ready: steamClient.isReady(),
+      ready: steamClient.isLoggedIn(),
+      gcReady: steamClient.isGcReady(),
       waitingGuard: steamClient.isWaitingSteamGuard(),
       pendingDomain: steamClient.getPendingGuardDomain(),
       uptime: process.uptime(),

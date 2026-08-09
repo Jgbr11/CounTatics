@@ -1,0 +1,5 @@
+com\countatic\core\service\MatchAnalysisServiceTest.class
+com\countatic\core\strategy\UtilityStatStrategyTest.class
+com\countatic\core\controller\PlayerAuthControllerTest.class
+com\countatic\core\strategy\AimStatStrategyTest.class
+com\countatic\core\util\CS2ShareCodeDecoderTest.class

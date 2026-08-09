@@ -1,0 +1,180 @@
+package com.countatic.core.service;
+
+import com.countatic.core.dto.stats.MatchDetailDTO;
+import com.countatic.core.dto.stats.PlayerStatResult;
+import com.countatic.core.entity.*;
+import com.countatic.core.repository.MatchRepository;
+import com.countatic.core.repository.RoundRepository;
+import com.countatic.core.strategy.StatCalculationStrategy;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+
+/**
+ * Monta a visão de leitura de uma partida para a API e para a página de detalhes.
+ *
+ * <p>As métricas são recalculadas sob demanda a partir dos eventos persistidos,
+ * em vez de armazenadas. É uma troca deliberada: o cálculo roda inteiramente em
+ * memória sobre dados já carregados (milissegundos), e em troca qualquer ajuste
+ * numa fórmula passa a valer imediatamente para todo o histórico — sem migração
+ * nem reprocessamento das demos, que já expiraram no CDN da Valve.</p>
+ */
+@Slf4j
+@Service
+public class MatchQueryService {
+
+    private final MatchRepository matchRepository;
+    private final RoundRepository roundRepository;
+    private final List<StatCalculationStrategy> strategies;
+
+    public MatchQueryService(MatchRepository matchRepository,
+                             RoundRepository roundRepository,
+                             List<StatCalculationStrategy> strategies) {
+        this.matchRepository = matchRepository;
+        this.roundRepository = roundRepository;
+        this.strategies = strategies;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<MatchDetailDTO> findByPublicToken(String token) {
+        return matchRepository.findByPublicToken(token).map(m -> buildDetail(m.getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<MatchDetailDTO> findById(Long id) {
+        if (!matchRepository.existsById(id)) {
+            return Optional.empty();
+        }
+        return Optional.of(buildDetail(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchDetailDTO> findRecent(int limit) {
+        return matchRepository.findAllByOrderByPlayedAtDesc().stream()
+                .limit(limit)
+                .map(m -> MatchDetailDTO.builder()
+                        .matchId(m.getId())
+                        .publicToken(m.getPublicToken())
+                        .mapName(m.getMapName())
+                        .scoreCT(m.getScoreCT())
+                        .scoreTR(m.getScoreTR())
+                        .totalRounds(m.getTotalRounds())
+                        .durationSeconds(m.getDurationSeconds())
+                        .tickRate(m.getTickRate())
+                        .playedAt(m.getPlayedAt())
+                        .status(m.getStatus() == null ? null : m.getStatus().name())
+                        // players omitido de propósito: a listagem não precisa
+                        // carregar milhares de eventos por partida.
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Carrega a partida inteira e calcula as métricas de todos os jogadores.
+     */
+    private MatchDetailDTO buildDetail(Long matchId) {
+        Match match = matchRepository.findByIdWithRounds(matchId)
+                .orElseThrow(() -> new IllegalArgumentException("Partida não encontrada: " + matchId));
+
+        // Popula eventos e jogadores no mesmo contexto de persistência.
+        // Sem isto, cada acesso a round.getEvents() dispararia uma consulta.
+        roundRepository.findWithEventsByMatchId(matchId);
+
+        Map<String, MatchDetailDTO.PlayerRow> rows = new LinkedHashMap<>();
+        Map<String, Player> playersById = new LinkedHashMap<>();
+
+        // ─── Contagens básicas a partir dos eventos ──────────────────
+        for (Round round : match.getRounds()) {
+            for (MatchEvent event : round.getEvents()) {
+                registerPlayer(playersById, rows, event.getActor());
+                registerPlayer(playersById, rows, event.getVictim());
+                registerPlayer(playersById, rows, event.getAssister());
+
+                switch (event.getEventType()) {
+                    case KILL -> {
+                        if (event.getActor() != null) {
+                            var row = rows.get(event.getActor().getSteamId64());
+                            row.setKills(row.getKills() + 1);
+                            if (Boolean.TRUE.equals(event.getIsHeadshot())) {
+                                row.setHeadshots(row.getHeadshots() + 1);
+                            }
+                        }
+                        // Mortes derivam do KILL: o parser não emite DEATH
+                        // separado, pois duplicaria as linhas sem acrescentar nada.
+                        if (event.getVictim() != null) {
+                            var row = rows.get(event.getVictim().getSteamId64());
+                            row.setDeaths(row.getDeaths() + 1);
+                        }
+                        if (event.getAssister() != null) {
+                            var row = rows.get(event.getAssister().getSteamId64());
+                            row.setAssists(row.getAssists() + 1);
+                        }
+                    }
+                    case DAMAGE -> {
+                        if (event.getActor() != null && event.getDamageAmount() != null) {
+                            var row = rows.get(event.getActor().getSteamId64());
+                            row.setDamage(row.getDamage() + event.getDamageAmount());
+                        }
+                    }
+                    default -> { /* demais eventos alimentam só as strategies */ }
+                }
+            }
+        }
+
+        // ─── Métricas das strategies ─────────────────────────────────
+        for (Map.Entry<String, Player> entry : playersById.entrySet()) {
+            MatchDetailDTO.PlayerRow row = rows.get(entry.getKey());
+
+            for (StatCalculationStrategy strategy : strategies) {
+                try {
+                    PlayerStatResult result = strategy.calculate(match, entry.getValue());
+                    if (result == null) continue;
+
+                    if (result.getMetrics() != null && !result.getMetrics().isEmpty()) {
+                        row.getMetrics().put(result.getCategory(), result.getMetrics());
+                    }
+                    if (result.getInsights() != null && !result.getInsights().isEmpty()) {
+                        row.getInsights().put(result.getCategory(), result.getInsights());
+                    }
+                } catch (Exception e) {
+                    // Uma strategy quebrada não pode derrubar a página inteira.
+                    log.warn("Strategy '{}' falhou para {} na partida {}: {}",
+                            strategy.getCategory(), entry.getKey(), matchId, e.getMessage());
+                }
+            }
+        }
+
+        List<MatchDetailDTO.PlayerRow> ordered = new ArrayList<>(rows.values());
+        ordered.sort(Comparator.comparingInt(MatchDetailDTO.PlayerRow::getKills).reversed());
+
+        return MatchDetailDTO.builder()
+                .matchId(match.getId())
+                .publicToken(match.getPublicToken())
+                .mapName(match.getMapName())
+                .scoreCT(match.getScoreCT())
+                .scoreTR(match.getScoreTR())
+                .totalRounds(match.getTotalRounds())
+                .durationSeconds(match.getDurationSeconds())
+                .tickRate(match.getTickRate())
+                .playedAt(match.getPlayedAt())
+                .status(match.getStatus() == null ? null : match.getStatus().name())
+                .players(ordered)
+                .build();
+    }
+
+    private void registerPlayer(Map<String, Player> playersById,
+                                 Map<String, MatchDetailDTO.PlayerRow> rows,
+                                 Player player) {
+        if (player == null || player.getSteamId64() == null) return;
+
+        playersById.computeIfAbsent(player.getSteamId64(), k -> player);
+        rows.computeIfAbsent(player.getSteamId64(), k -> MatchDetailDTO.PlayerRow.builder()
+                .steamId64(player.getSteamId64())
+                .playerName(player.getDisplayName())
+                .metrics(new LinkedHashMap<>())
+                .insights(new LinkedHashMap<>())
+                .build());
+    }
+}

@@ -4,12 +4,18 @@ import com.countatic.core.dto.parser.ParsedDemoDTO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Cliente HTTP responsável por comunicar com o microsserviço Demo Parser (Go).
@@ -25,16 +31,40 @@ public class DemoParserClientService {
     private final ObjectMapper objectMapper;
 
     public DemoParserClientService(
-            @Value("${services.parser-url:http://localhost:8081}") String parserUrl,
+            @Qualifier("parserRestClient") RestClient parserRestClient,
             ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.builder()
-                .baseUrl(parserUrl)
-                .build();
+        this.restClient = parserRestClient;
+    }
+
+    /**
+     * Envia um arquivo .dem em disco para o parser Go, sem carregá-lo em memória.
+     *
+     * <p>Preferir esta sobrecarga: o Spring transmite o multipart direto do
+     * arquivo, então uma demo de centenas de MB não vira um {@code byte[]} no heap.</p>
+     *
+     * @param demoFile caminho do arquivo .dem já descompactado
+     */
+    public ParsedDemoDTO parseDemo(Path demoFile) {
+        long sizeBytes;
+        try {
+            sizeBytes = Files.size(demoFile);
+        } catch (Exception e) {
+            throw new RuntimeException("Não foi possível ler o arquivo da demo: " + demoFile, e);
+        }
+
+        log.info("🚀 Enviando demo '{}' ({} MB) para o Demo Parser (Go)...",
+                demoFile.getFileName(), String.format("%.2f", sizeBytes / (1024.0 * 1024.0)));
+
+        return sendAndParse(new FileSystemResource(demoFile));
     }
 
     /**
      * Envia os bytes de um arquivo .dem para o microsserviço Go para parsing.
+     *
+     * <p>Mantida para uploads pequenos vindos direto de uma requisição HTTP.
+     * Para demos baixadas do CDN prefira {@link #parseDemo(Path)}, que não
+     * materializa o arquivo inteiro em memória.</p>
      *
      * @param fileName nome do arquivo .dem (ex: "match_123.dem")
      * @param demoBytes bytes brutos do arquivo .dem
@@ -44,19 +74,33 @@ public class DemoParserClientService {
         log.info("🚀 Enviando demo '{}' ({} MB) para o Demo Parser (Go)...",
                 fileName, String.format("%.2f", demoBytes.length / (1024.0 * 1024.0)));
 
-        MultipartBodyBuilder builder = new MultipartBodyBuilder();
-        builder.part("demo", new ByteArrayResource(demoBytes) {
+        return sendAndParse(new ByteArrayResource(demoBytes) {
             @Override
             public String getFilename() {
                 return fileName;
             }
-        }, MediaType.APPLICATION_OCTET_STREAM);
+        });
+    }
+
+    /**
+     * Faz o POST /parse e desembrulha o envelope {@code {success, data}} do Go.
+     *
+     * <p>Usa {@link LinkedMultiValueMap} em vez de {@code MultipartBodyBuilder}:
+     * este último carrega uma dependência opcional de {@code reactive-streams},
+     * ausente num projeto Spring MVC puro, e explodia em
+     * {@code NoClassDefFoundError: org/reactivestreams/Publisher} em tempo de
+     * execução — nunca em compilação.</p>
+     */
+    private ParsedDemoDTO sendAndParse(Resource demoResource) {
+        MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+        // O nome da parte precisa ser "demo": é o que o handler.go do Go espera.
+        form.add("demo", demoResource);
 
         try {
             String responseJson = restClient.post()
                     .uri("/parse")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(builder.build())
+                    .body(form)
                     .retrieve()
                     .body(String.class);
 

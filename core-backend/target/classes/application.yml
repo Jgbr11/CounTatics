@@ -11,7 +11,20 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+        # Uma demo gera dezenas de milhares de MatchEvents. Sem batching,
+        # cada linha vira um INSERT individual e a persistência leva minutos.
+        jdbc:
+          batch_size: 100
+        order_inserts: true
+        order_updates: true
     open-in-view: false
+
+  # ─── Agendamento ─────────────────────────────────────────────────
+  # Pool > 1 para que um jogador lento não bloqueie o ciclo dos demais.
+  task:
+    scheduling:
+      pool:
+        size: 4
 
   # ─── DataSource (MySQL) ──────────────────────────────────────────
   datasource:
@@ -25,18 +38,49 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+  # ─── Upload de demos ─────────────────────────────────────────────
+  # Os defaults do Spring são 1 MB por arquivo e 10 MB por requisição.
+  # Uma demo de CS2 descompactada passa de 250 MB.
+  servlet:
+    multipart:
+      max-file-size: 600MB
+      max-request-size: 600MB
+
 # ─── Server ──────────────────────────────────────────────────────
 server:
   port: 8080
 
 # ─── Configurações da Steam & Microsserviços ────────────────────
 steam:
-  web-api-key: ${STEAM_WEB_API_KEY:DEV_KEY}
+  # Sem default: uma chave falsa só produz 403 silencioso da Valve.
+  # Defina STEAM_WEB_API_KEY no .env (veja .env.example).
+  web-api-key: ${STEAM_WEB_API_KEY:}
   auto-fetch-interval-ms: 300000
 
 services:
   parser-url: ${SERVICES_PARSER_URL:http://localhost:8081}
   bot-url: ${SERVICES_BOT_URL:http://localhost:3000}
+
+countatic:
+  # SteamID64 da conta do bot — usado para rejeitar o cadastro dela como jogador.
+  bot-steam-id: ${BOT_STEAM_ID:}
+  # Diretório para as demos baixadas (streaming para disco, não para heap).
+  demo-temp-dir: ${DEMO_TEMP_DIR:${java.io.tmpdir}}
+  # Base da URL enviada no chat da Steam com o link dos detalhes da partida.
+  # Em produção, trocar pelo domínio público.
+  web-base-url: ${WEB_BASE_URL:http://localhost:8080}
+  # Intervalo do worker que processa os jobs pendentes.
+  worker-interval-ms: 30000
+
+# ─── Actuator ────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
 
 # ─── Logging ─────────────────────────────────────────────────────
 logging:

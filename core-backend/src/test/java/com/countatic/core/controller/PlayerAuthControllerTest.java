@@ -3,7 +3,7 @@ package com.countatic.core.controller;
 import com.countatic.core.dto.valve.ValveAuthRequestDTO;
 import com.countatic.core.entity.Player;
 import com.countatic.core.repository.PlayerRepository;
-import com.countatic.core.service.ValveDemoFetcherScheduler;
+import com.countatic.core.service.MatchDiscoveryScheduler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ class PlayerAuthControllerTest {
     private PlayerRepository playerRepository;
 
     @MockBean
-    private ValveDemoFetcherScheduler fetcherScheduler;
+    private MatchDiscoveryScheduler discoveryScheduler;
 
     @Test
     @DisplayName("POST /api/players/auth — Deve registrar credenciais da Valve com sucesso")

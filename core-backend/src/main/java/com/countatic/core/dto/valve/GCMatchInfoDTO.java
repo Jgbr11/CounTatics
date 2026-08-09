@@ -29,11 +29,21 @@ public class GCMatchInfoDTO {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MatchInfo {
         private String matchId;
+        /**
+         * Timestamp unix de INÍCIO da partida (campo {@code matchtime} do GC).
+         * Usado para preencher {@code Match.playedAt} com a hora real da partida
+         * em vez da hora em que a demo foi parseada.
+         */
+        private long matchTimeUnix;
+        /** Duração real em segundos ({@code match_duration} das round stats). */
         private int matchDuration;
         private String mapName;
         private String matchResult;
+        /** Placar já orientado pelo time de quem solicitou. */
         private int roundsWon;
         private int roundsLost;
+        /** Placar bruto por índice de time, sem orientação. */
+        private List<Integer> teamScores;
         private String demoUrl;
         private List<PlayerStats> players;
     }
@@ -52,6 +62,8 @@ public class GCMatchInfoDTO {
         private int headshots;
         private int mvps;
         private int score;
+        /** "A" ou "B" — CT/TR não é recuperável para a partida toda (lados trocam). */
         private String team;
+        private int teamIndex;
     }
 }

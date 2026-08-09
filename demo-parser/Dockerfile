@@ -3,7 +3,11 @@
 # ═══════════════════════════════════════════════════════
 
 # Stage 1: Build
-FROM golang:1.22-alpine AS builder
+# Go 1.24+ é exigido por demoinfocs-golang v5.
+# A v4.5.1 (última da linha v4) não parseia demos atuais de CS2: quebra com
+# "unable to find existing entity NNN" em sendtables2 — a Valve mudou a
+# codificação de entidades e só a v5 acompanhou.
+FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git
 

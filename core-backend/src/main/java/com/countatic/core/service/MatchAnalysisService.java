@@ -13,6 +13,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -98,6 +99,25 @@ public class MatchAnalysisService {
     public MatchAnalysisResult processDemo(String demoFileName,
                                             String demoFileHash,
                                             ParsedDemoDTO parsedDemo) {
+        return processDemo(demoFileName, demoFileHash, parsedDemo, null);
+    }
+
+    /**
+     * Igual a {@link #processDemo(String, String, ParsedDemoDTO)}, mas permite
+     * sobrescrever a data da partida.
+     *
+     * <p>O parser Go não tem como saber quando a partida aconteceu — o header
+     * de demos Source 2 não carrega timestamp — então ele preenche com a hora
+     * do parsing. Quando o Game Coordinator informa o {@code matchtime} real,
+     * ele é passado aqui e tem prioridade.</p>
+     *
+     * @param playedAtOverride data real da partida, ou {@code null} para usar a do parser
+     */
+    @Transactional
+    public MatchAnalysisResult processDemo(String demoFileName,
+                                            String demoFileHash,
+                                            ParsedDemoDTO parsedDemo,
+                                            Instant playedAtOverride) {
 
         log.info("Iniciando processamento da demo: {} (hash: {})", demoFileName, demoFileHash);
 
@@ -108,7 +128,12 @@ public class MatchAnalysisService {
         }
 
         // ─── 2. Converter DTOs em entidades ──────────────────────────────
-        Match match = convertToMatch(demoFileName, demoFileHash, parsedDemo);
+        // O cache de jogadores é LOCAL a esta chamada. Como campo de instância
+        // num singleton do Spring, ele nunca era limpo: a segunda demo reusava
+        // entidades já desanexadas do contexto de persistência da primeira,
+        // além de não ser thread-safe.
+        Map<String, Player> playerCache = new HashMap<>();
+        Match match = convertToMatch(demoFileName, demoFileHash, parsedDemo, playedAtOverride, playerCache);
         log.debug("Match convertida: mapa={}, rounds={}", match.getMapName(), match.getTotalRounds());
 
         // ─── 3. Persistir no banco ────────────────────────────────────────
@@ -146,7 +171,9 @@ public class MatchAnalysisService {
      * de Rounds e MatchEvents.
      */
     private Match convertToMatch(String demoFileName, String demoFileHash,
-                                  ParsedDemoDTO dto) {
+                                  ParsedDemoDTO dto,
+                                  Instant playedAtOverride,
+                                  Map<String, Player> playerCache) {
         Match match = Match.builder()
                 .demoFileName(demoFileName)
                 .demoFileHash(demoFileHash)
@@ -157,13 +184,13 @@ public class MatchAnalysisService {
                 .scoreTR(dto.getScoreTR())
                 .totalRounds(dto.getTotalRounds())
                 .tickRate(dto.getTickRate())
-                .playedAt(dto.getPlayedAt())
+                .playedAt(playedAtOverride != null ? playedAtOverride : dto.getPlayedAt())
                 .status(MatchStatus.PENDING)
                 .build();
 
         if (dto.getRounds() != null) {
             for (ParsedRoundDTO roundDto : dto.getRounds()) {
-                Round round = convertToRound(roundDto);
+                Round round = convertToRound(roundDto, playerCache);
                 match.addRound(round);
             }
         }
@@ -174,7 +201,7 @@ public class MatchAnalysisService {
     /**
      * Converte um DTO de round em uma entidade Round com seus MatchEvents.
      */
-    private Round convertToRound(ParsedRoundDTO dto) {
+    private Round convertToRound(ParsedRoundDTO dto, Map<String, Player> playerCache) {
         Round round = Round.builder()
                 .roundNumber(dto.getRoundNumber())
                 .winnerSide(dto.getWinnerSide())
@@ -190,7 +217,7 @@ public class MatchAnalysisService {
 
         if (dto.getEvents() != null) {
             for (ParsedEventDTO eventDto : dto.getEvents()) {
-                MatchEvent event = convertToEvent(eventDto);
+                MatchEvent event = convertToEvent(eventDto, playerCache);
                 round.addEvent(event);
             }
         }
@@ -204,15 +231,15 @@ public class MatchAnalysisService {
      * <p>Resolve as referências de jogadores por SteamID64, criando novos registros
      * de {@link Player} se ainda não existirem no banco de dados (upsert por SteamID64).</p>
      */
-    private MatchEvent convertToEvent(ParsedEventDTO dto) {
+    private MatchEvent convertToEvent(ParsedEventDTO dto, Map<String, Player> playerCache) {
         return MatchEvent.builder()
                 .eventType(dto.getEventType())
                 .tick(dto.getTick())
-                .actor(resolvePlayer(dto.getActorSteamId(), dto.getActorName()))
+                .actor(resolvePlayer(dto.getActorSteamId(), dto.getActorName(), playerCache))
                 .actorSide(dto.getActorSide())
-                .victim(resolvePlayer(dto.getVictimSteamId(), dto.getVictimName()))
+                .victim(resolvePlayer(dto.getVictimSteamId(), dto.getVictimName(), playerCache))
                 .victimSide(dto.getVictimSide())
-                .assister(resolvePlayer(dto.getAssisterSteamId(), dto.getAssisterName()))
+                .assister(resolvePlayer(dto.getAssisterSteamId(), dto.getAssisterName(), playerCache))
                 .weapon(dto.getWeapon())
                 .isHeadshot(dto.getIsHeadshot())
                 .damageAmount(dto.getDamageAmount())
@@ -235,12 +262,6 @@ public class MatchAnalysisService {
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Cache local para evitar buscas repetidas ao banco durante o processamento
-     * de uma mesma demo (que pode ter centenas de eventos com os mesmos 10 jogadores).
-     */
-    private final Map<String, Player> playerCache = new HashMap<>();
-
-    /**
      * Resolve um jogador pelo SteamID64, fazendo upsert se necessário.
      *
      * <p>Lógica:</p>
@@ -250,8 +271,13 @@ public class MatchAnalysisService {
      *   <li>Se existe no banco → atualiza o displayName e retorna</li>
      *   <li>Se não existe → cria novo Player e retorna</li>
      * </ol>
+     *
+     * @param playerCache cache com escopo de UMA chamada de processDemo — evita
+     *                    centenas de consultas repetidas para os mesmos 10 jogadores
+     *                    sem carregar entidades desanexadas entre transações
      */
-    private Player resolvePlayer(String steamId64, String displayName) {
+    private Player resolvePlayer(String steamId64, String displayName,
+                                  Map<String, Player> playerCache) {
         if (steamId64 == null || steamId64.isBlank()) {
             return null;
         }

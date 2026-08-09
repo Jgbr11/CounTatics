@@ -1,5 +1,6 @@
 package com.countatic.core.dto.valve;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// Sem isto, qualquer campo extra que a Valve adicione à resposta quebra a
+// desserialização inteira — e a falha aparecia como "nenhuma partida nova".
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ValveNextMatchResponseDTO {
 
     private ResultData result;
@@ -30,6 +34,7 @@ public class ValveNextMatchResponseDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ResultData {
         @JsonProperty("nextcode")
         private String nextCode;

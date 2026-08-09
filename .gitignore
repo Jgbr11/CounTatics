@@ -1,0 +1,26 @@
+# ─── Segredos ────────────────────────────────────────────
+# Nunca commitar credenciais nem tokens de sessão da Steam.
+.env
+.env.local
+**/.env
+!.env.example
+**/refreshToken.txt
+
+# ─── Build ───────────────────────────────────────────────
+**/node_modules/
+**/dist/
+**/target/
+demo-parser/demo-parser
+demo-parser/demo-parser.exe
+
+# ─── Demos e temporários ─────────────────────────────────
+*.dem
+*.dem.bz2
+*.log
+
+# ─── IDE / OS ────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+Thumbs.db
+.DS_Store

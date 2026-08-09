@@ -44,7 +44,12 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SERVICES_PARSER_URL: http://parser-service:8081
       SERVICES_BOT_URL: http://steam-bot:3000
-      STEAM_WEB_API_KEY: B9F646F22285653ECA34EEE14E054194
+      # Segredos vêm do ./.env (git-ignored). Ver .env.example.
+      # A sintaxe ":?" faz o compose falhar cedo com mensagem clara
+      # em vez de subir com uma chave vazia e dar 403 silencioso.
+      STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:?defina STEAM_WEB_API_KEY no arquivo .env}
+      BOT_STEAM_ID: ${BOT_STEAM_ID:-}
+      DEMO_TEMP_DIR: /tmp/demos
     depends_on:
       mysql-db:
         condition: service_healthy
@@ -54,6 +59,9 @@ services:
         condition: service_started
     networks:
       - countatic-net
+    # Demos são baixadas em streaming para disco, não para o heap.
+    tmpfs:
+      - /tmp/demos:size=4g
 
   # ═════════════════════════════════════════════════════════════════
   # 3. DEMO PARSER (Go / demoinfocs-golang) — O Worker
@@ -86,8 +94,12 @@ services:
       - ./steam-bot/.env
     environment:
       BOT_PORT: "3000"
+      TOKEN_FILE: /app/data/refreshToken.txt
     volumes:
-      - ./steam-bot/refreshToken.txt:/app/refreshToken.txt:ro
+      # Volume nomeado (read-write) em vez do bind ":ro" antigo: o steam-user
+      # renova o refresh token periodicamente e precisa poder gravá-lo, senão
+      # o token expira e o bot volta a pedir código por e-mail.
+      - steam-bot-data:/app/data
     networks:
       - countatic-net
 
@@ -102,3 +114,5 @@ networks:
 volumes:
   mysql-data:
     name: countatic-mysql-data
+  steam-bot-data:
+    name: countatic-steam-bot-data

@@ -19,7 +19,8 @@ import java.util.List;
 @Entity
 @Table(name = "matches", indexes = {
         @Index(name = "idx_match_demo_hash", columnList = "demoFileHash", unique = true),
-        @Index(name = "idx_match_played_at", columnList = "playedAt")
+        @Index(name = "idx_match_played_at", columnList = "playedAt"),
+        @Index(name = "idx_match_public_token", columnList = "publicToken", unique = true)
 })
 @Getter
 @Setter
@@ -108,6 +109,17 @@ public class Match {
     private String errorMessage;
 
     /**
+     * Token público e não-adivinhável usado na URL de detalhes da partida
+     * ({@code /m/{publicToken}}), enviada ao jogador pelo chat da Steam.
+     *
+     * <p>É um UUID em vez do {@code id} sequencial porque a página não tem
+     * autenticação: com id incremental qualquer pessoa varreria as partidas
+     * de todos os jogadores só contando de 1 em diante.</p>
+     */
+    @Column(unique = true, length = 36)
+    private String publicToken;
+
+    /**
      * Data/hora em que a partida foi efetivamente jogada (extraída da demo).
      */
     @Column(nullable = false)
@@ -159,6 +171,9 @@ public class Match {
         this.updatedAt = now;
         if (this.status == null) {
             this.status = MatchStatus.PENDING;
+        }
+        if (this.publicToken == null) {
+            this.publicToken = java.util.UUID.randomUUID().toString();
         }
     }
 
