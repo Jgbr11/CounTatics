@@ -7,7 +7,9 @@ import com.countatic.core.dto.stats.MatchAnalysisResult;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.repository.MatchRepository;
+import com.countatic.core.repository.PlayerMatchStatsRepository;
 import com.countatic.core.repository.PlayerRepository;
+import com.countatic.core.repository.RoundRepository;
 import com.countatic.core.strategy.StatCalculationStrategy;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +48,9 @@ import java.util.stream.Collectors;
 public class MatchAnalysisService {
 
     private final MatchRepository matchRepository;
+    private final RoundRepository roundRepository;
     private final PlayerRepository playerRepository;
+    private final PlayerMatchStatsRepository playerMatchStatsRepository;
     private final List<StatCalculationStrategy> strategies;
 
     /**
@@ -62,10 +66,14 @@ public class MatchAnalysisService {
      * @param strategies       lista de todas as strategies de cálculo registradas
      */
     public MatchAnalysisService(MatchRepository matchRepository,
+                                 RoundRepository roundRepository,
                                  PlayerRepository playerRepository,
+                                 PlayerMatchStatsRepository playerMatchStatsRepository,
                                  List<StatCalculationStrategy> strategies) {
         this.matchRepository = matchRepository;
+        this.roundRepository = roundRepository;
         this.playerRepository = playerRepository;
+        this.playerMatchStatsRepository = playerMatchStatsRepository;
         this.strategies = strategies;
 
         log.info("MatchAnalysisService inicializado com {} strategies: {}",
@@ -118,6 +126,24 @@ public class MatchAnalysisService {
                                             String demoFileHash,
                                             ParsedDemoDTO parsedDemo,
                                             Instant playedAtOverride) {
+        return processDemo(demoFileName, demoFileHash, parsedDemo, playedAtOverride, null);
+    }
+
+    /**
+     * Igual às demais sobrecargas, mas registra também o CS Rating da partida.
+     *
+     * <p>O rating define a faixa de comparação: sem ele, os desempenhos são
+     * salvos mas ficam fora de qualquer base de comparação — o que é correto,
+     * já que não se sabe contra quem comparar.</p>
+     *
+     * @param csRating CS Rating (Premier) de quem cadastrou a partida
+     */
+    @Transactional
+    public MatchAnalysisResult processDemo(String demoFileName,
+                                            String demoFileHash,
+                                            ParsedDemoDTO parsedDemo,
+                                            Instant playedAtOverride,
+                                            Integer csRating) {
 
         log.info("Iniciando processamento da demo: {} (hash: {})", demoFileName, demoFileHash);
 
@@ -138,8 +164,11 @@ public class MatchAnalysisService {
 
         // ─── 3. Persistir no banco ────────────────────────────────────────
         match.setStatus(MatchStatus.PROCESSING);
+        match.setCsRating(csRating);
+        match.setRankTier(RankTier.fromRating(csRating));
         Match savedMatch = matchRepository.save(match);
-        log.debug("Match salva com ID={}", savedMatch.getId());
+        log.debug("Match salva com ID={} (rating={}, faixa={})",
+                savedMatch.getId(), csRating, savedMatch.getRankTier());
 
         // ─── 4. Aplicar strategies e calcular métricas ────────────────────
         Set<Player> participants = extractParticipants(savedMatch);
@@ -147,7 +176,12 @@ public class MatchAnalysisService {
 
         List<PlayerStatResult> allStats = applyStrategies(savedMatch, participants);
 
-        // ─── 5. Marcar como concluída ─────────────────────────────────────
+        // ─── 5. Registrar os desempenhos para a base de comparação ────────
+        // Cada partida rende 10 linhas — uma por jogador —, então a base de
+        // referência cresce dez vezes mais rápido que o número de partidas.
+        persistirDesempenhos(savedMatch, participants, allStats);
+
+        // ─── 6. Marcar como concluída ─────────────────────────────────────
         savedMatch.setStatus(MatchStatus.COMPLETED);
         matchRepository.save(savedMatch);
 
@@ -160,6 +194,119 @@ public class MatchAnalysisService {
                 .finalScore(savedMatch.getScoreCT() + "-" + savedMatch.getScoreTR())
                 .playerStats(allStats)
                 .build();
+    }
+
+    /**
+     * Recalcula e regrava os desempenhos de uma partida já analisada.
+     *
+     * <p>Serve a dois propósitos:</p>
+     * <ol>
+     *   <li><b>Backfill:</b> partidas analisadas antes de existir a captura de
+     *       CS Rating ficaram sem faixa e, portanto, fora da base de comparação.
+     *       Cada uma delas guarda 10 desempenhos que só precisavam ser lidos.</li>
+     *   <li><b>Mudança de fórmula:</b> ajustar uma métrica exige reprocessar o
+     *       histórico. Como os eventos estão persistidos, isso não depende da
+     *       demo original — que expira no CDN da Valve em ~2 semanas.</li>
+     * </ol>
+     *
+     * @param csRating rating a atribuir; {@code null} preserva o que já existe
+     * @return quantidade de desempenhos regravados
+     */
+    @Transactional
+    public int recomputePlayerStats(Long matchId, Integer csRating) {
+        Match match = matchRepository.findByIdWithRounds(matchId)
+                .orElseThrow(() -> new IllegalArgumentException("Partida não encontrada: " + matchId));
+
+        // Materializa eventos e jogadores no mesmo contexto de persistência.
+        roundRepository.findWithEventsByMatchId(matchId);
+
+        if (csRating != null) {
+            match.setCsRating(csRating);
+            match.setRankTier(RankTier.fromRating(csRating));
+            matchRepository.save(match);
+        }
+
+        // Apaga antes de regravar: a constraint (match, player) é única, e um
+        // recompute tem que substituir, não acumular.
+        playerMatchStatsRepository.deleteByMatchId(matchId);
+        playerMatchStatsRepository.flush();
+
+        Set<Player> participants = extractParticipants(match);
+        List<PlayerStatResult> allStats = applyStrategies(match, participants);
+        persistirDesempenhos(match, participants, allStats);
+
+        log.info("Desempenhos recomputados para a partida {} ({} jogadores, faixa {}).",
+                matchId, participants.size(), match.getRankTier());
+
+        return participants.size();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  REGISTRO DOS DESEMPENHOS (base de comparação)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Consolida as métricas das várias strategies numa linha por jogador.
+     *
+     * <p>As strategies devolvem um resultado por categoria (Aim, Utility,
+     * Impacto); aqui elas são achatadas num único registro por jogador, que é o
+     * formato que as consultas de percentil conseguem agregar.</p>
+     */
+    private void persistirDesempenhos(Match match, Set<Player> participants,
+                                       List<PlayerStatResult> allStats) {
+        int rounds = match.getTotalRounds() == null ? 0 : match.getTotalRounds();
+
+        // Agrupa todas as métricas por jogador, independentemente da categoria.
+        Map<String, Map<String, Double>> porJogador = new HashMap<>();
+        for (PlayerStatResult r : allStats) {
+            if (r == null || r.getSteamId64() == null || r.getMetrics() == null) continue;
+            porJogador.computeIfAbsent(r.getSteamId64(), k -> new HashMap<>())
+                    .putAll(r.getMetrics());
+        }
+
+        for (Player player : participants) {
+            Map<String, Double> m = porJogador.get(player.getSteamId64());
+            if (m == null || m.isEmpty()) continue;
+
+            Double tradeKills = m.get("tradeKills");
+            Double tradesPorRound = (tradeKills != null && rounds > 0)
+                    ? round2(tradeKills / rounds) : null;
+
+            PlayerMatchStats stats = PlayerMatchStats.builder()
+                    .match(match)
+                    .player(player)
+                    .steamId64(player.getSteamId64())
+                    .rankTier(match.getRankTier())
+                    .csRating(match.getCsRating())
+                    .roundsPlayed(rounds)
+                    .adr(m.get("adr"))
+                    .kdRatio(m.get("kdRatio"))
+                    .headshotPercentage(m.get("headshotPercentage"))
+                    .killsPerRound(m.get("killsPerRound"))
+                    .deathsPerRound(m.get("deathsPerRound"))
+                    .tradeKillsPerRound(tradesPorRound)
+                    .openingDuelWinRate(m.get("openingDuelWinRate"))
+                    .flashEfficiency(m.get("flashEfficiency"))
+                    .utilityDamagePerRound(m.get("utilityDamagePerRound"))
+                    .crosshairPlacementScore(m.get("crosshairPlacementScore"))
+                    .kills(toInt(m.get("totalKills")))
+                    .deaths(toInt(m.get("totalDeaths")))
+                    .totalDamage(toInt(m.get("totalDamage")))
+                    .build();
+
+            playerMatchStatsRepository.save(stats);
+        }
+
+        log.debug("Desempenhos registrados para {} jogadores (faixa {}).",
+                participants.size(), match.getRankTier());
+    }
+
+    private static Integer toInt(Double d) {
+        return d == null ? null : (int) Math.round(d);
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
     }
 
     // ═══════════════════════════════════════════════════════════════════

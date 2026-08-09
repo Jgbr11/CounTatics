@@ -197,6 +197,7 @@ public class MatchJobWorker {
 
         job.setDemoUrl(gcInfo.getDemoUrl());
         job.setMatchTimeUnix(gcInfo.getMatchTimeUnix());
+        job.setCsRating(gcInfo.getRequesterRank());
         job.setAttempts(0); // etapa vencida: zera o contador para a próxima
         job.setLastError(null);
 
@@ -256,7 +257,8 @@ public class MatchJobWorker {
                     : null;
 
             MatchAnalysisResult result = matchAnalysisService.processDemo(
-                    job.getShareCode() + ".dem", downloaded.sha256(), parsed, playedAt);
+                    job.getShareCode() + ".dem", downloaded.sha256(), parsed, playedAt,
+                    job.getCsRating());
 
             matchRepository.findById(result.getMatchId()).ifPresent(job::setMatch);
             job.setStatus(MatchFetchStatus.DEMO_DONE);

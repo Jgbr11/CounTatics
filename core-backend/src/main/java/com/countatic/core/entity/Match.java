@@ -120,6 +120,21 @@ public class Match {
     private String publicToken;
 
     /**
+     * CS Rating (Premier) de quem cadastrou a partida, no momento da análise.
+     *
+     * <p>Caracteriza o nível da partida inteira: o matchmaking pareia jogadores
+     * de rating parecido, então uma única consulta ao Game Coordinator descreve
+     * os 10 — consultar cada um levaria ~30 s pelo rate limit, com ganho
+     * marginal de precisão.</p>
+     */
+    private Integer csRating;
+
+    /** Faixa derivada de {@link #csRating}, usada como grupo de comparação. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private RankTier rankTier;
+
+    /**
      * Data/hora em que a partida foi efetivamente jogada (extraída da demo).
      */
     @Column(nullable = false)

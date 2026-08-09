@@ -34,6 +34,13 @@ public class MatchDetailDTO {
     private Instant playedAt;
     private String status;
 
+    /** CS Rating de quem cadastrou a partida — define a faixa de comparação. */
+    private Integer csRating;
+    /** Faixa de comparação (nome da constante). */
+    private String rankTier;
+    /** Rótulo legível da faixa, ex: "Azul (10.000–14.999)". */
+    private String rankTierLabel;
+
     /** Uma linha por jogador, com as métricas agregadas de todas as categorias. */
     private List<PlayerRow> players;
 
@@ -57,5 +64,15 @@ public class MatchDetailDTO {
 
         /** Dicas de melhoria por categoria. */
         private Map<String, Map<String, String>> insights;
+
+        /**
+         * Comparação com jogadores da mesma faixa.
+         *
+         * <p>Preenchido apenas para o jogador dono da partida, e apenas quando
+         * há amostra suficiente. Caso contrário traz o motivo em {@code aviso}
+         * — mostrar percentil calculado sobre poucas amostras seria pior do que
+         * não mostrar nada.</p>
+         */
+        private Object baseline;
     }
 }

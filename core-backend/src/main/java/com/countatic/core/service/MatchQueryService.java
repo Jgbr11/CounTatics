@@ -4,6 +4,7 @@ import com.countatic.core.dto.stats.MatchDetailDTO;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.repository.MatchRepository;
+import com.countatic.core.repository.PlayerRepository;
 import com.countatic.core.repository.RoundRepository;
 import com.countatic.core.strategy.StatCalculationStrategy;
 import lombok.extern.slf4j.Slf4j;
@@ -27,13 +28,19 @@ public class MatchQueryService {
 
     private final MatchRepository matchRepository;
     private final RoundRepository roundRepository;
+    private final PlayerRepository playerRepository;
+    private final BaselineService baselineService;
     private final List<StatCalculationStrategy> strategies;
 
     public MatchQueryService(MatchRepository matchRepository,
                              RoundRepository roundRepository,
+                             PlayerRepository playerRepository,
+                             BaselineService baselineService,
                              List<StatCalculationStrategy> strategies) {
         this.matchRepository = matchRepository;
         this.roundRepository = roundRepository;
+        this.playerRepository = playerRepository;
+        this.baselineService = baselineService;
         this.strategies = strategies;
     }
 
@@ -149,6 +156,12 @@ public class MatchQueryService {
         List<MatchDetailDTO.PlayerRow> ordered = new ArrayList<>(rows.values());
         ordered.sort(Comparator.comparingInt(MatchDetailDTO.PlayerRow::getKills).reversed());
 
+        // ─── Comparação com a faixa ──────────────────────────────────
+        // Só para quem cadastrou a partida: é o único jogador de quem
+        // conhecemos o CS Rating, e comparar os outros contra uma faixa que
+        // não sabemos ser a deles seria inventar dado.
+        anexarComparacao(match, ordered);
+
         return MatchDetailDTO.builder()
                 .matchId(match.getId())
                 .publicToken(match.getPublicToken())
@@ -160,8 +173,43 @@ public class MatchQueryService {
                 .tickRate(match.getTickRate())
                 .playedAt(match.getPlayedAt())
                 .status(match.getStatus() == null ? null : match.getStatus().name())
+                .csRating(match.getCsRating())
+                .rankTier(match.getRankTier() == null ? null : match.getRankTier().name())
+                .rankTierLabel(match.getRankTier() == null ? null : match.getRankTier().getLabel())
                 .players(ordered)
                 .build();
+    }
+
+    /**
+     * Anexa a comparação por faixa aos jogadores cadastrados no sistema.
+     *
+     * <p>Um jogador só recebe comparação se estiver cadastrado — é dele que
+     * conhecemos o CS Rating. Atribuir a faixa da partida aos outros nove
+     * serviria para alimentar a base (o matchmaking os pareia), mas exibir a
+     * eles um percentil de uma faixa que talvez não seja a deles seria
+     * apresentar suposição como fato.</p>
+     */
+    private void anexarComparacao(Match match, List<MatchDetailDTO.PlayerRow> linhas) {
+        if (match.getRankTier() == null) return;
+
+        for (MatchDetailDTO.PlayerRow linha : linhas) {
+            boolean cadastrado = playerRepository.findBySteamId64(linha.getSteamId64())
+                    .map(p -> p.getAuthCode() != null)
+                    .orElse(false);
+            if (!cadastrado) continue;
+
+            Map<String, Double> valores = new LinkedHashMap<>();
+            for (Map<String, Double> categoria : linha.getMetrics().values()) {
+                valores.putAll(categoria);
+            }
+            // tradeKills absoluto não compara entre partidas de tamanhos diferentes.
+            Double trades = valores.get("tradeKills");
+            if (trades != null && match.getTotalRounds() != null && match.getTotalRounds() > 0) {
+                valores.put("tradeKillsPerRound", trades / match.getTotalRounds());
+            }
+
+            linha.setBaseline(baselineService.comparar(match.getRankTier(), valores));
+        }
     }
 
     private void registerPlayer(Map<String, Player> playersById,

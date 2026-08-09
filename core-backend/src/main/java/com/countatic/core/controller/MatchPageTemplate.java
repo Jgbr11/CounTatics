@@ -85,6 +85,23 @@ final class MatchPageTemplate {
                          border-radius:0 8px 8px 0;padding:.6rem .8rem;margin-bottom:.5rem;
                          font-size:.92rem}
 
+                .tier{display:inline-block;padding:.1rem .5rem;border-radius:999px;
+                      background:rgba(88,166,255,.14);color:var(--accent);
+                      font-size:.8rem;font-weight:600}
+                .cmp{margin-bottom:.55rem}
+                .cmp .row{display:flex;justify-content:space-between;align-items:baseline;
+                          gap:.6rem;font-size:.88rem;margin-bottom:.2rem}
+                .cmp .lbl{color:var(--muted)}
+                .cmp .val{font-variant-numeric:tabular-nums}
+                .bar{position:relative;height:6px;border-radius:999px;background:#21262d;
+                     overflow:hidden}
+                .bar i{position:absolute;inset:0 auto 0 0;border-radius:999px;display:block}
+                .bar .avg{position:absolute;top:-3px;width:2px;height:12px;background:var(--muted);
+                          opacity:.85}
+                .note{background:var(--panel-2);border-left:3px solid var(--accent);
+                      border-radius:0 8px 8px 0;padding:.65rem .8rem;font-size:.9rem;
+                      color:var(--muted)}
+
                 .hint{color:var(--muted);font-size:.85rem;margin:.2rem 0 0}
                 footer{color:var(--muted);font-size:.8rem;text-align:center;margin-top:2rem}
               </style>
@@ -168,6 +185,48 @@ final class MatchPageTemplate {
             const el = id => document.getElementById(id);
             const txt = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
 
+            /**
+             * Comparação com jogadores da mesma faixa de CS Rating.
+             *
+             * Quando a amostra é pequena, mostra o aviso em vez de um percentil:
+             * um número calculado sobre poucos dados parece preciso sem ser.
+             */
+            function renderBaseline(b) {
+              if (!b) return "";
+
+              if (!b.amostraSuficiente) {
+                return `<div class="cat"><div class="note">${txt(b.aviso || "Sem comparação disponível.")}</div></div>`;
+              }
+
+              const metricas = Object.values(b.metricas || {});
+              if (!metricas.length) return "";
+
+              let html = `<div class="cat"><h3>Comparado com a faixa ` +
+                         `<span class="tier">${txt(b.faixaLabel)}</span> ` +
+                         `<span style="color:var(--muted);font-weight:400">` +
+                         `· ${b.amostraTotal} desempenhos</span></h3>`;
+
+              for (const c of metricas) {
+                // Cor pelo percentil: verde = topo, vermelho = base.
+                const p = Math.max(0, Math.min(100, c.percentil));
+                const cor = p >= 60 ? "var(--good)" : (p >= 40 ? "var(--warn)" : "var(--bad)");
+
+                html += `<div class="cmp">
+                    <div class="row">
+                      <span class="lbl">${txt(c.rotulo)}</span>
+                      <span class="val"><b>${c.valor}</b>
+                        <span style="color:var(--muted)"> · média ${c.media} · top ${(100 - p).toFixed(0)}%</span>
+                      </span>
+                    </div>
+                    <div class="bar">
+                      <i style="width:${p}%;background:${cor}"></i>
+                    </div>
+                  </div>`;
+              }
+
+              return html + `</div>`;
+            }
+
             function renderHeader() {
               const ct = DATA.scoreCT ?? 0, tr = DATA.scoreTR ?? 0;
               el("title").textContent = DATA.mapName || "Partida";
@@ -208,7 +267,7 @@ final class MatchPageTemplate {
 
               el("detailTitle").textContent = "Métricas — " + (p.playerName || p.steamId64);
 
-              let html = "";
+              let html = renderBaseline(p.baseline);
               const cats = Object.keys(p.metrics || {});
 
               if (!cats.length) {

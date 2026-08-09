@@ -44,6 +44,11 @@ public class GCMatchInfoDTO {
         private int roundsLost;
         /** Placar bruto por índice de time, sem orientação. */
         private List<Integer> teamScores;
+        /**
+         * CS Rating (Premier) de quem solicitou, consultado no perfil do GC.
+         * Define a faixa de comparação da partida.
+         */
+        private Integer requesterRank;
         private String demoUrl;
         private List<PlayerStats> players;
     }

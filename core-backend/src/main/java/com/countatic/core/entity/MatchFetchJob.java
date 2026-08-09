@@ -96,6 +96,12 @@ public class MatchFetchJob {
     /** Timestamp unix do início da partida, informado pelo GC. */
     private Long matchTimeUnix;
 
+    /**
+     * CS Rating (Premier) de quem cadastrou, consultado junto com as stats do GC.
+     * Guardado aqui para não repetir a consulta se o download da demo falhar.
+     */
+    private Integer csRating;
+
     // ─── Controle de retry ────────────────────────────────────────────
 
     @Column(nullable = false)

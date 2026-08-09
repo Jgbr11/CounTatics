@@ -46,6 +46,34 @@ public class MatchController {
         return ResponseEntity.ok(matchQueryService.findRecent(Math.min(limit, 100)));
     }
 
+    /**
+     * Recalcula os desempenhos de uma partida já analisada.
+     *
+     * <p>Usos: alimentar a base de comparação com partidas analisadas antes de
+     * existir a captura de CS Rating, e reprocessar o histórico quando uma
+     * fórmula muda. Funciona a partir dos eventos persistidos — não depende da
+     * demo original, que expira no CDN da Valve.</p>
+     *
+     * @param csRating rating a atribuir à partida; omitido preserva o atual
+     */
+    @PostMapping("/matches/{id}/recompute")
+    public ResponseEntity<?> recompute(@PathVariable("id") Long id,
+                                       @RequestParam(required = false) Integer csRating) {
+        try {
+            int jogadores = matchAnalysisService.recomputePlayerStats(id, csRating);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "matchId", id,
+                    "playersRecomputed", jogadores
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Falha ao recomputar a partida {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
     /** Detalhes completos de uma partida, com métricas por jogador. */
     @GetMapping("/matches/{id}")
     public ResponseEntity<?> getMatch(@PathVariable("id") Long id) {

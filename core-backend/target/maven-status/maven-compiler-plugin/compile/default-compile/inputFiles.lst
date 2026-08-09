@@ -21,6 +21,8 @@ C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countat
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\MatchFetchStatus.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\MatchStatus.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\Player.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\PlayerMatchStats.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\RankTier.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\Round.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\RoundEndReason.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\entity\Team.java
@@ -31,8 +33,10 @@ C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countat
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\MatchEventRepository.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\MatchFetchJobRepository.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\MatchRepository.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\PlayerMatchStatsRepository.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\PlayerRepository.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\repository\RoundRepository.java
+C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\BaselineService.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\DemoParserClientService.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\MatchAnalysisService.java
 C:\TRABALHOS\Projeto CounTatic\CounTatics\core-backend\src\main\java\com\countatic\core\service\MatchDiscoveryScheduler.java
