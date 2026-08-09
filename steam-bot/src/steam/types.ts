@@ -22,6 +22,15 @@ export interface GCMatchInfo {
   teamScores: number[];
   demoUrl: string | null;
   players: GCPlayerStats[];
+
+  /**
+   * Média dos ratings dos jogadores da partida.
+   *
+   * O matchmaking pareia gente de nível parecido, então esta média é uma boa
+   * aproximação do nível da partida — inclusive para jogadores cujo rating
+   * individual o GC não informou.
+   */
+  averageRank: number | null;
 }
 
 export interface GCPlayerStats {
@@ -36,6 +45,21 @@ export interface GCPlayerStats {
   /** "A" ou "B" — CT/TR não é recuperável para a partida toda (lados trocam). */
   team: string;
   teamIndex: number;
+
+  /**
+   * Rating do jogador na fila em que a partida foi jogada.
+   *
+   * Em Premier (`rankTypeId` 11) é o CS Rating propriamente dito — o número de
+   * 4-5 dígitos que aparece no jogo. Em competitivo clássico é o índice da
+   * patente (1-18). `null` quando o GC não informa.
+   *
+   * É a base para comparar o desempenho contra jogadores de nível parecido,
+   * em vez de contra uma média global sem sentido.
+   */
+  rank: number | null;
+
+  /** Tipo de fila: 11 = Premier, 6 = competitivo por mapa, 7 = Wingman. */
+  rankTypeId: number | null;
 }
 
 /**

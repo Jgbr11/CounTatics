@@ -400,6 +400,56 @@ export class SteamClientManager {
     });
   }
 
+  /**
+   * Consulta o perfil de um jogador no Game Coordinator.
+   *
+   * É a fonte do CS Rating (Premier) usado para comparar o desempenho contra
+   * jogadores de nível parecido. A resposta da partida (`requestGame`) NÃO traz
+   * ranking em CS2 — `reservation.rankings` chega vazio —, então o rating
+   * precisa ser buscado por aqui.
+   *
+   * @returns o perfil, ou `null` se o GC não responder no prazo
+   */
+  async requestPlayerProfile(steamId64: string): Promise<any | null> {
+    if (!this.gcReady) return null;
+
+    await this.throttleGcRequest();
+    if (!this.gcReady) return null;
+
+    return new Promise((resolve) => {
+      let concluido = false;
+
+      const timer = setTimeout(() => {
+        if (concluido) return;
+        concluido = true;
+        logger.warn(`⏰ Timeout ao consultar o perfil de ${steamId64} no GC.`);
+        resolve(null);
+      }, this.gcRequestTimeoutMs);
+
+      try {
+        const enviado = this.csgo.requestPlayersProfile(steamId64, (profile: any) => {
+          if (concluido) return;
+          concluido = true;
+          clearTimeout(timer);
+          resolve(profile ?? null);
+        });
+
+        // requestPlayersProfile devolve false para SteamID inválido.
+        if (enviado === false) {
+          concluido = true;
+          clearTimeout(timer);
+          logger.warn(`SteamID inválido para consulta de perfil: ${steamId64}`);
+          resolve(null);
+        }
+      } catch (err) {
+        concluido = true;
+        clearTimeout(timer);
+        logger.error(`Erro ao consultar perfil de ${steamId64}: ${err}`);
+        resolve(null);
+      }
+    });
+  }
+
   /** Garante um intervalo mínimo entre chamadas consecutivas ao GC. */
   private async throttleGcRequest(): Promise<void> {
     const previous = this.gcRequestChain;

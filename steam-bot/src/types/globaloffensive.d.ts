@@ -9,6 +9,9 @@ declare module "globaloffensive" {
 
     requestGame(shareCodeOrDetails: string | { matchId: string; outcomeId: string; token: number }): void;
 
+    /** Devolve `false` se o SteamID for inválido; senão dispara a consulta. */
+    requestPlayersProfile(steamid: string, callback?: (profile: any) => void): boolean | void;
+
     on(event: "connectedToGC", callback: () => void): this;
     on(event: "disconnectedFromGC", callback: (reason: any) => void): this;
     on(event: "matchList", callback: (matches: any[], deSerializedResponse: any) => void): this;

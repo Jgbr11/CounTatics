@@ -7,6 +7,7 @@ import { config } from "./config";
 import { SteamClientManager } from "./steam/client";
 import { createRouter } from "./routes/notify";
 import { createMatchRoutes } from "./routes/match";
+import { createDiagRoutes } from "./routes/diag";
 import logger from "./utils/logger";
 
 /**
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
   // Montar rotas
   app.use("/", createRouter(steamClient));
   app.use("/", createMatchRoutes(steamClient));
+  app.use("/", createDiagRoutes(steamClient));
 
   // ─── 3. Iniciar servidor HTTP ───────────────────────────────────
   const port = config.server.port;

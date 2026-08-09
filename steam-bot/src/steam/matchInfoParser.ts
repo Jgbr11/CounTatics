@@ -136,6 +136,48 @@ export function accountIdToSteamId64(accountId: number | null | undefined): stri
   return new SteamID(`[U:1:${accountId}]`).getSteamID64();
 }
 
+export interface RankInfo {
+  rank: number | null;
+  rankTypeId: number | null;
+}
+
+/**
+ * Extrai o rating de cada jogador a partir de `reservation.rankings`.
+ *
+ * Casa por `account_id`, que vem **dentro** de cada `PlayerRankingInfo`, e não
+ * por posição no array. Isso torna a extração imune ao problema de alinhamento
+ * que afetou as estatísticas: mesmo que a ordem de `rankings` difira da de
+ * `account_ids`, cada rating vai para o dono certo.
+ */
+export function extractRankings(stats: any): Map<number, RankInfo> {
+  const out = new Map<number, RankInfo>();
+  const rankings: any[] = stats?.reservation?.rankings ?? [];
+
+  for (const r of rankings) {
+    const accountId = r?.account_id;
+    if (!accountId) continue;
+
+    out.set(accountId, {
+      rank: typeof r.rank_id === "number" ? r.rank_id : null,
+      rankTypeId: typeof r.rank_type_id === "number" ? r.rank_type_id : null,
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Média dos ratings informados.
+ *
+ * Ignora zeros: em Premier, rating 0 significa "ainda não calibrado", não
+ * "jogador ruim" — incluí-lo puxaria a média da partida para baixo sem motivo.
+ */
+export function averageRank(players: { rank: number | null }[]): number | null {
+  const valores = players.map((p) => p.rank).filter((r): r is number => typeof r === "number" && r > 0);
+  if (!valores.length) return null;
+  return Math.round(valores.reduce((a, b) => a + b, 0) / valores.length);
+}
+
 /**
  * Monta o {@link GCMatchInfo} a partir da resposta crua do GC.
  *
@@ -158,21 +200,29 @@ export async function parseGcMatch(
 
   const steamIds = accountIds.map(accountIdToSteamId64);
   const personas = steamIds.length ? await resolvePersonas(steamIds) : new Map<string, string>();
+  const rankings = extractRankings(stats);
 
-  const players: GCPlayerStats[] = steamIds.map((steamId64, i) => ({
-    steamId64,
-    playerName: personas.get(steamId64) ?? `Player${i + 1}`,
-    kills: kills[i] ?? 0,
-    deaths: deaths[i] ?? 0,
-    assists: assists[i] ?? 0,
-    headshots: enemyHeadshots[i] ?? 0,
-    mvps: mvps[i] ?? 0,
-    score: scores[i] ?? 0,
-    // Os lados trocam no intervalo, então rotular CT/TR para a partida inteira
-    // seria dado inventado. Índices 0-4 = time A, 5-9 = time B.
-    team: i < 5 ? "A" : "B",
-    teamIndex: i < 5 ? 0 : 1,
-  }));
+  const players: GCPlayerStats[] = steamIds.map((steamId64, i) => {
+    // Casado por account_id, não por posição — ver extractRankings.
+    const rk = rankings.get(accountIds[i]) ?? { rank: null, rankTypeId: null };
+
+    return {
+      steamId64,
+      playerName: personas.get(steamId64) ?? `Player${i + 1}`,
+      kills: kills[i] ?? 0,
+      deaths: deaths[i] ?? 0,
+      assists: assists[i] ?? 0,
+      headshots: enemyHeadshots[i] ?? 0,
+      mvps: mvps[i] ?? 0,
+      score: scores[i] ?? 0,
+      // Os lados trocam no intervalo, então rotular CT/TR para a partida inteira
+      // seria dado inventado. Índices 0-4 = time A, 5-9 = time B.
+      team: i < 5 ? "A" : "B",
+      teamIndex: i < 5 ? 0 : 1,
+      rank: rk.rank,
+      rankTypeId: rk.rankTypeId,
+    };
+  });
 
   const teamScores: number[] = stats?.team_scores ?? [];
 
@@ -205,6 +255,7 @@ export async function parseGcMatch(
     teamScores,
     demoUrl: demo.url,
     players,
+    averageRank: averageRank(players),
   };
 
   return { matchInfo, warnings };
