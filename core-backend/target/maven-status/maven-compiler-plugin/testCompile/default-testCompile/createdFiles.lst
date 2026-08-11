@@ -1,8 +1,0 @@
-com\countatic\core\service\MatchAnalysisServiceTest.class
-com\countatic\core\service\MatchDiscoverySchedulerTest.class
-com\countatic\core\service\MatchFetchJobServiceTest.class
-com\countatic\core\controller\PlayerAuthControllerTest.class
-com\countatic\core\service\BaselineServiceTest.class
-com\countatic\core\strategy\ImpactStatStrategyTest.class
-com\countatic\core\strategy\AimStatStrategyTest.class
-com\countatic\core\util\CS2ShareCodeDecoderTest.class
