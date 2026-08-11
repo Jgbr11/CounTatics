@@ -7,6 +7,7 @@ import com.countatic.core.service.DemoParserClientService;
 import com.countatic.core.service.MatchAnalysisService;
 import com.countatic.core.service.MatchFetchJobService;
 import com.countatic.core.service.MatchQueryService;
+import com.countatic.core.service.MatchReprocessService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,15 +30,18 @@ public class MatchController {
     private final MatchFetchJobService jobService;
     private final DemoParserClientService demoParserClientService;
     private final MatchAnalysisService matchAnalysisService;
+    private final MatchReprocessService matchReprocessService;
 
     public MatchController(MatchQueryService matchQueryService,
                            MatchFetchJobService jobService,
                            DemoParserClientService demoParserClientService,
-                           MatchAnalysisService matchAnalysisService) {
+                           MatchAnalysisService matchAnalysisService,
+                           MatchReprocessService matchReprocessService) {
         this.matchQueryService = matchQueryService;
         this.jobService = jobService;
         this.demoParserClientService = demoParserClientService;
         this.matchAnalysisService = matchAnalysisService;
+        this.matchReprocessService = matchReprocessService;
     }
 
     /** Lista as partidas analisadas, mais recentes primeiro. */
@@ -70,6 +74,42 @@ public class MatchController {
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
             log.error("Falha ao recomputar a partida {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Descarta a análise de uma partida e a refaz a partir da demo no CDN.
+     *
+     * <p>Diferente de {@code /recompute}, que recalcula sobre os eventos já
+     * gravados, este endpoint re-baixa e re-parseia — é o único caminho quando o
+     * parser passou a extrair um campo que as partidas antigas não têm.</p>
+     *
+     * <p>Responde <b>202 Accepted</b>: quem executa é o worker, no ciclo de 30 s.
+     * Download e parsing levam poucos minutos; acompanhe por
+     * {@code GET /api/players/{steamId}/jobs}.</p>
+     *
+     * <p><b>A partida recebe um publicToken novo</b>, então o link {@code /m/...}
+     * já enviado no chat deixa de responder. O worker manda um link novo ao
+     * concluir. Rearme uma partida por vez para não estourar o rate limit do
+     * chat da Steam.</p>
+     */
+    @PostMapping("/matches/{id}/reparse")
+    public ResponseEntity<?> reparse(@PathVariable("id") Long id) {
+        try {
+            Long jobId = matchReprocessService.rearmar(id);
+            return ResponseEntity.accepted().body(Map.of(
+                    "success", true,
+                    "jobId", jobId,
+                    "message", "Partida descartada. O worker vai re-baixar e re-parsear "
+                            + "em até 30 segundos."
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of("success", false, "error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Falha ao rearmar a partida {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of("success", false, "error", e.getMessage()));
         }
     }
