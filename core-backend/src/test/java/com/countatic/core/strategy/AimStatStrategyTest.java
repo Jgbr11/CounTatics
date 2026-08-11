@@ -197,6 +197,58 @@ class AimStatStrategyTest {
         assertThat(result.getMetrics().get("evaluatedShots")).isNull();
     }
 
+    @Test
+    @DisplayName("Não publica crosshairPlacementScore quando nenhum disparo tem alvo — "
+            + "0.0 entraria na base de comparação como se fosse desempenho real")
+    void naoPublicaCrosshairSemDisparoAvaliavel() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+
+        // Disparo com ângulo de visão, mas sem a posição do inimigo: é
+        // exatamente o formato que o parser Go produzia antes do commit 473f198,
+        // e é o que está gravado nas partidas já analisadas.
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.WEAPON_FIRE)
+                .actor(testPlayer)
+                .tick(100)
+                .actorPositionX(0.0).actorPositionY(0.0).actorPositionZ(64.0)
+                .viewAngleX(0.0).viewAngleY(0.0)
+                .build());
+
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics())
+                .doesNotContainKey("crosshairPlacementScore")
+                .doesNotContainKey("medianCrosshairErrorDegrees")
+                .doesNotContainKey("evaluatedShots");
+    }
+
+    @Test
+    @DisplayName("Publica crosshairPlacementScore quando o disparo tem a cabeça do inimigo anexada")
+    void publicaCrosshairComDisparoAvaliavel() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+
+        // Mira exatamente sobre a cabeça: yaw 0 aponta para +X na convenção
+        // Source, e o alvo está 100 unidades à frente, na mesma altura dos olhos.
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.WEAPON_FIRE)
+                .actor(testPlayer)
+                .tick(100)
+                .actorPositionX(0.0).actorPositionY(0.0).actorPositionZ(64.0)
+                .victimPositionX(100.0).victimPositionY(0.0).victimPositionZ(64.0)
+                .viewAngleX(0.0).viewAngleY(0.0)
+                .build());
+
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics().get("crosshairPlacementScore")).isEqualTo(100.0);
+        assertThat(result.getMetrics().get("evaluatedShots")).isEqualTo(1.0);
+        assertThat(result.getMetrics().get("medianCrosshairErrorDegrees")).isEqualTo(0.0);
+    }
+
     /** Monta um WEAPON_FIRE com posição dos olhos, mira e cabeça do inimigo. */
     private MatchEvent disparo(double yaw, double pitch,
                                double olhoX, double olhoY, double olhoZ,

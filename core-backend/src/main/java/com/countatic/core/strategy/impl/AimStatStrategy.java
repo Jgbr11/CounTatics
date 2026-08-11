@@ -84,16 +84,22 @@ public class AimStatStrategy implements StatCalculationStrategy {
         List<MatchEvent> weaponFires = filterByActorAndType(allEvents, playerId, EventType.WEAPON_FIRE);
         List<Double> erros = errosAngulares(weaponFires);
 
-        double crosshairScore = calculateCrosshairPlacement(erros);
-        metrics.put("crosshairPlacementScore", round2(crosshairScore));
-
         // Só publica as métricas de mira se houver disparos avaliáveis.
-        // Devolver 0.0 quando não há dado seria indistinguível de "mira péssima".
+        //
+        // Publicar 0.0 quando não há dado não é "conservador": o valor entra em
+        // player_match_stats como desempenho real e o BaselineService o compara
+        // com os demais. Com uma base inteira em 0.0, a condição `valor <= 0`
+        // vale para todos e cada jogador recebe percentil 100 — a métrica passa
+        // a afirmar o contrário do que os dados dizem. NULL sai da comparação;
+        // 0.0 mente dentro dela.
         if (!erros.isEmpty()) {
-            metrics.put("medianCrosshairErrorDegrees", round2(erroAngularMediano(erros)));
+            double erroMediano = erroAngularMediano(erros);
+
+            metrics.put("crosshairPlacementScore", round2(calculateCrosshairPlacement(erros)));
+            metrics.put("medianCrosshairErrorDegrees", round2(erroMediano));
             metrics.put("evaluatedShots", (double) erros.size());
             insights.put("crosshairPlacementScore",
-                    generateCrosshairInsight(crosshairScore, erroAngularMediano(erros)));
+                    generateCrosshairInsight(calculateCrosshairPlacement(erros), erroMediano));
         }
 
         // ─── 6. Total Kills / Deaths (valores absolutos) ─────────────────
