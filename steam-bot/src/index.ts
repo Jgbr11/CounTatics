@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
-import { config } from "./config";
+import { getConfig } from "./config";
 import { SteamClientManager } from "./steam/client";
 import { createRouter } from "./routes/notify";
 import { createMatchRoutes } from "./routes/match";
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   app.use("/", createDiagRoutes(steamClient));
 
   // ─── 3. Iniciar servidor HTTP ───────────────────────────────────
-  const port = config.server.port;
+  const port = getConfig().server.port;
   const server = app.listen(port, () => {
     logger.info(`🚀 Servidor HTTP iniciado na porta ${port}`);
     logger.info(`   Endpoints disponíveis:`);
@@ -95,6 +95,21 @@ async function main(): Promise<void> {
   process.on("unhandledRejection", (reason) => {
     logger.error(`Promise rejection não tratada: ${reason}`);
   });
+}
+
+// ─── Validar configuração cedo ──────────────────────────────────────
+// getConfig() agora só valida quando chamado; sem isto, um bot sem
+// credenciais só descobriria isso ao tentar logar no Steam, tarde demais
+// para a mensagem de erro clara que este projeto sempre teve.
+try {
+  getConfig();
+} catch (erro) {
+  console.error(
+    "═══════════════════════════════════════════════════════\n" +
+    `  ERRO DE CONFIGURAÇÃO: ${(erro as Error).message}\n` +
+    "═══════════════════════════════════════════════════════"
+  );
+  process.exit(1);
 }
 
 // ─── Executar ─────────────────────────────────────────────────────

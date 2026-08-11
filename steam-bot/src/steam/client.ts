@@ -4,7 +4,7 @@ import GlobalOffensive from "globaloffensive";
 import { ShareCode } from "globaloffensive-sharecode";
 import fs from "fs";
 import path from "path";
-import { config } from "../config";
+import { getConfig } from "../config";
 import logger from "../utils/logger";
 import { parseGcMatch, extractPremierRating } from "./matchInfoParser";
 import type { GCMatchInfo, MatchInfoResult, SendMessageResult } from "./types";
@@ -98,7 +98,7 @@ export class SteamClientManager {
       this.steamGuardCallback = null;
       this.pendingGuardDomain = null;
       logger.info("✅ Steam Client logado com sucesso!");
-      logger.info(`   Conta: ${config.steam.username}`);
+      logger.info(`   Conta: ${getConfig().steam.username}`);
       logger.info(`   SteamID: ${this.client.steamID?.toString()}`);
 
       this.client.setPersona(SteamUser.EPersonaState.Online);
@@ -181,9 +181,9 @@ export class SteamClientManager {
       this.steamGuardCallback = callback;
       this.pendingGuardDomain = domain;
 
-      if (config.steam.sharedSecret) {
+      if (getConfig().steam.sharedSecret) {
         const SteamTotp = require("steam-totp");
-        const code = SteamTotp.generateAuthCode(config.steam.sharedSecret);
+        const code = SteamTotp.generateAuthCode(getConfig().steam.sharedSecret);
         logger.info(`🔐 Steam Guard: código 2FA gerado automaticamente via shared secret`);
         callback(code);
       } else {
@@ -284,7 +284,7 @@ export class SteamClientManager {
           this.gcRetryAttempts++; // loga uma única vez
           logger.error("═════════════════════════════════════════════════════════════════");
           logger.error("🛑 O Game Coordinator do CS2 não respondeu após várias tentativas.");
-          logger.error(`   Causa mais provável: a conta '${config.steam.username}' NÃO possui`);
+          logger.error(`   Causa mais provável: a conta '${getConfig().steam.username}' NÃO possui`);
           logger.error("   Counter-Strike 2 (appid 730) na biblioteca.");
           logger.error("   Sem licença do 730 o GC ignora o ClientHello silenciosamente.");
           logger.error("   👉 Logue na conta do bot e instale o CS2 (gratuito), depois reinicie.");
@@ -623,8 +623,8 @@ export class SteamClientManager {
   private loginWithAuthCode(authCode: string): void {
     this.status = SteamClientStatus.CONNECTING;
     this.client.logOn({
-      accountName: config.steam.username,
-      password: config.steam.password,
+      accountName: getConfig().steam.username,
+      password: getConfig().steam.password,
       authCode: authCode,
     });
   }
@@ -690,7 +690,7 @@ export class SteamClientManager {
     if (savedRefreshToken) {
       logger.info(`🔑 Fazendo login no Steam usando Refresh Token salvo...`);
     } else {
-      logger.info(`🔑 Fazendo login no Steam como '${config.steam.username}'...`);
+      logger.info(`🔑 Fazendo login no Steam como '${getConfig().steam.username}'...`);
     }
 
     this.loginPromise = new Promise<void>((resolve, reject) => {
@@ -720,8 +720,8 @@ export class SteamClientManager {
         });
       } else {
         this.client.logOn({
-          accountName: config.steam.username,
-          password: config.steam.password,
+          accountName: getConfig().steam.username,
+          password: getConfig().steam.password,
         });
       }
     });
