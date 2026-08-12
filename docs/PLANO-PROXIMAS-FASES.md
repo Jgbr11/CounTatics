@@ -105,12 +105,21 @@ pipeline completo, o envio ao parser falhou com
 avançado e commitado *antes* do processamento, a partida foi perdida — precisei
 rebobinar o share code manualmente via SQL para recuperá-la.
 
-Hoje, qualquer uma destas situações apaga uma partida permanentemente:
+Até o Bloco A entrar (2026-08-09), qualquer uma destas situações apagava uma
+partida permanentemente:
 - o Steam Bot estar reiniciando na hora do ciclo
 - o GC não responder dentro dos 15 s
 - o CDN da Valve devolver erro transitório
 - o parser Go ficar sem memória ou dar timeout
 - o MySQL recusar o insert
+
+**Resultado:** implementado como desenhado. Hoje cada uma dessas falhas marca o
+job como `FAILED` e o reagenda com backoff (`MatchFetchJobService.BACKOFF`:
+1m → 3m → 10m → 30m → 2h → 6h, `MAX_ATTEMPTS = 6`). A partida só é abandonada
+depois de esgotadas as tentativas, e ainda assim com mensagem final explicando
+a causa. `MatchDiscoveryScheduler` commita o job **antes** de avançar
+`player.latestShareCode` — no pior caso sobra um job órfão, nunca uma partida
+perdida.
 
 ### A.1 — Entidade `MatchFetchJob`
 
@@ -160,11 +169,15 @@ deduplicação entre GSI e polling, e read model para o endpoint de status.
 ### A.3 — `fetch-now` assíncrono
 
 **Problema observado:** durante o teste, o `Invoke-RestMethod` caiu com
-"conexão fechada de modo inesperado" — o `fetch-now` roda o pipeline inteiro
+"conexão fechada de modo inesperado" — o `fetch-now` rodava o pipeline inteiro
 (download 45 s + parse 40 s + persistência) na thread HTTP.
 
 **Modificar:** `controller/PlayerAuthController.java` — devolver **202 Accepted**
 com o `jobId` e deixar o worker executar.
+
+**Resultado:** implementado como desenhado. `PlayerAuthController` responde
+`ResponseEntity.accepted()` com o `jobId`; quem executa o pipeline é o
+`MatchJobWorker`.
 
 ### A.4 — Endpoints de leitura
 
@@ -286,20 +299,31 @@ quando a partida não tem nenhum tiro medível (round sem confronto direto),
 
 ### C.2 — `flashEfficiency` acima de 100% ✅ IMPLEMENTADO
 
-Hoje o numerador conta *cegamentos* e o denominador conta *flashes*: uma flash
-que cega 3 inimigos dá 300%. Separar em duas métricas honestas:
+Até 2026-08-11, o numerador contava *cegamentos* e o denominador contava
+*flashes*: uma flash que cegasse 3 inimigos dava 300%. O desenho era separar em
+duas métricas honestas:
 - `flashEfficiency` = flashes que cegaram ≥1 inimigo ÷ flashes lançadas
   (correlacionar `FLASH_BLINDED` com `FLASH_THROWN` por proximidade de tick, ±1 s)
-- `enemyBlindsPerFlash` = a razão atual, que legitimamente passa de 1
+- `enemyBlindsPerFlash` = a razão anterior, que legitimamente passa de 1
+
+**Resultado:** implementado como desenhado, em
+`UtilityStatStrategy.contarFlashesEfetivas`. Cada cegamento é atribuído à flash
+mais próxima no tempo e as flashes efetivas entram num `Set` por tick, de modo
+que a mesma flash conta uma vez só — é isso que trava a métrica em 100%.
+`enemyBlindsPerFlash` foi publicada ao lado dela.
+
+> Nuance da implementação: a janela é a constante `JANELA_FLASH_TICKS = 64`,
+> não derivada de `match.tickRate`. Equivale ao ±1 s desenhado em servidor
+> 64 tick; num servidor 128 tick a janela real seria de ±0,5 s.
 
 ### C.3 — Métricas novas agora possíveis ✅ IMPLEMENTADO
 
-O parser já emite os eventos; falta só calcular. **Nova:**
+O parser já emitia os eventos; faltava só calcular. **Nova:**
 `strategy/impl/ImpactStatStrategy.java`
 
 | Métrica | Como |
 |---|---|
-| **ADR** | soma de `DAMAGE.damageAmount` ÷ rounds — a métrica mais pedida e hoje ausente |
+| **ADR** | soma de `DAMAGE.damageAmount` ÷ rounds — a métrica mais pedida e, até então, ausente |
 | **Trade kills** | KILL em até 5 s (convertido via `match.tickRate`) após a morte de um aliado |
 | **Opening duels** | primeira KILL do round: taxa de vitória e impacto no resultado |
 | **Clutches** | último vivo do seu lado no momento de uma KILL que decide o round |
@@ -307,6 +331,19 @@ O parser já emite os eventos; falta só calcular. **Nova:**
 
 Reaproveita `MatchEventRepository.findByMatchIdAndEventType`, que hoje é código
 morto, e o Strategy Pattern já montado (basta um `@Component` novo).
+
+**Resultado:** implementado como desenhado em
+`strategy/impl/ImpactStatStrategy.java` — `adr`, `tradeKills`/`tradedDeaths`,
+`openingDuels`/`openingDuelWinRate` e `clutchesWon`/`clutchWinRate`, com a
+janela de trade de 5 s convertida para ticks via `match.tickRate`. O utility
+damage/round ficou onde já estava, em `UtilityStatStrategy`
+(`utilityDamagePerRound`).
+
+> ⚠️ Uma parte do desenho **não** se concretizou: `ImpactStatStrategy` percorre
+> `match.getRounds()` diretamente e não chama
+> `MatchEventRepository.findByMatchIdAndEventType`. Esse método continua sem
+> nenhum uso em produção — segue sendo código morto, ao contrário do que o
+> parágrafo acima previa.
 
 ### C.4 — MVP não está sendo emitido ❌ EM ABERTO
 

@@ -13,9 +13,15 @@ import logger from "./utils/logger";
 /**
  * Entry point do CounTatic Steam Bot.
  *
- * Fluxo de inicialização:
+ * Fluxo de inicialização.
+ *
+ * Antes de `main()`, no carregamento deste módulo:
  * 1. Carregar variáveis de ambiente (.env)
- * 2. Validar configuração (STEAM_USERNAME, STEAM_PASSWORD)
+ * 2. Validar configuração (STEAM_USERNAME, STEAM_PASSWORD) — `getConfig()` é
+ *    preguiçoso, então a chamada no fim do arquivo força a validação e encerra
+ *    o processo com mensagem clara se faltar credencial
+ *
+ * Dentro de `main()`:
  * 3. Conectar ao Steam via steam-user
  * 4. Iniciar servidor Express (POST /notify, GET /health)
  * 5. Aguardar webhooks do Core Backend (Java)
