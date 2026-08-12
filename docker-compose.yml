@@ -50,6 +50,7 @@ services:
       STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:?defina STEAM_WEB_API_KEY no arquivo .env}
       BOT_STEAM_ID: ${BOT_STEAM_ID:-}
       DEMO_TEMP_DIR: /tmp/demos
+      GSI_TOKEN: ${GSI_TOKEN:-}
     depends_on:
       mysql-db:
         condition: service_healthy

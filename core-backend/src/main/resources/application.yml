@@ -71,6 +71,10 @@ countatic:
   web-base-url: ${WEB_BASE_URL:http://localhost:8080}
   # Intervalo do worker que processa os jobs pendentes.
   worker-interval-ms: 30000
+  # Token compartilhado com o gamestate_integration_countatic.cfg do CS2.
+  # Vazio recusa todo payload — endpoint aberto na 8080 aceitaria qualquer um.
+  gsi:
+    token: ${GSI_TOKEN:}
 
 # ─── Actuator ────────────────────────────────────────────────────
 management:
