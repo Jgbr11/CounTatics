@@ -1,20 +1,31 @@
 # CounTatic — Plano das próximas fases
 
-> **Status: Bloco A implementado em 2026-08-09.** Ver `## Bloco A` abaixo — as
-> seções seguem como registro do que foi feito. Blocos B, C e D pendentes.
+> **Status em 2026-08-11.** Blocos A, B, C e D implementados.
 >
-> Mudança de escopo aprovada durante a implementação: em vez de várias
-> mensagens longas no chat, o bot envia **uma mensagem curta com link** para
-> uma página web de detalhes (`/m/{token}`). Resolve o rate limit da Steam de
-> forma definitiva e cabe muito mais informação do que num chat.
-
-> Situação em 2026-08-08: o pipeline funciona ponta a ponta e foi validado com
-> dados reais (partida `CSGO-Pf6Xz-...`, `de_inferno`, 21 rounds). O que segue
-> trata de **confiabilidade, gatilho instantâneo e qualidade das métricas**.
+> - **A — Confiabilidade:** fila durável de jobs, worker com backoff, `fetch-now`
+>   assíncrono, página `/m/{token}`. Flyway (A.5) segue adiado.
+> - **B — Gatilho instantâneo (GSI):** `POST /api/gsi` com token compartilhado,
+>   detecção de borda `live|warmup|intermission → gameover`, relatório
+>   preliminar em ~2 s e sondagem do share code com backoff.
+> - **C — Qualidade das métricas:** crosshair placement real (posição do alvo
+>   vinda do parser Go), `flashEfficiency` limitada a 100%, e `ImpactStatStrategy`
+>   com ADR, trades, opening duels e clutches. **C.4 (evento MVP) segue aberto.**
+>   Extra não planejado: CS Rating → `RankTier` → `PlayerMatchStats` →
+>   `BaselineService`, com percentis por faixa na página de partida.
+> - **D — Testes:** 88 Java, 27 TypeScript, 7 Go.
+>
+> **Pendências conhecidas:** Flyway (A.5) e o evento MVP não emitido (C.4).
+> **Pendências com o usuário:** rotacionar a Steam Web API Key (exposta no
+> histórico do git desde o commit `6742558`) e reparsear as três partidas já
+> armazenadas antes que as demos expirem no CDN da Valve, por volta de
+> 2026-08-22.
 
 ---
 
-## Onde estamos
+## Onde estávamos (baseline de 2026-08-08, antes dos Blocos A–D)
+
+> Tabela histórica — o estado atual de cada linha está nos blocos abaixo, todos
+> ✅ implementados. Mantida como registro do ponto de partida.
 
 | Componente | Estado |
 |---|---|
@@ -165,9 +176,13 @@ com o `jobId` e deixar o worker executar.
 | `GET /api/matches?steamId=` | histórico de partidas |
 | `GET /api/matches/{id}` | métricas completas de uma partida |
 | `POST /api/matches/upload` | **enviar um `.dem` manualmente** |
+| `POST /api/matches/{id}/reparse` | descarta a análise atual e devolve o job a `GC_DONE`, para o worker refazer o download e o parsing a partir do CDN da Valve (adicionado depois, junto com os ajustes de C.1/C.2) |
 
 O upload manual vale por si: permite validar mudanças no parser em segundos, sem
-esperar você jogar nem depender do CDN da Valve.
+esperar você jogar nem depender do CDN da Valve. O `reparse` vale pelo motivo
+oposto: refazer partidas já persistidas depois de uma correção de métrica —
+foi assim que as três partidas atuais precisarão ser atualizadas antes que o
+CDN expire suas demos.
 
 ### A.5 — Flyway
 
@@ -179,7 +194,7 @@ nunca remove nada. Introduzir Flyway agora, enquanto o delta é pequeno:
 
 ---
 
-## Bloco B — Gatilho instantâneo (GSI)
+## Bloco B — Gatilho instantâneo (GSI) ✅ IMPLEMENTADO
 
 > **Depende do Bloco A**: a chave `UNIQUE (steamId64, shareCode)` é o árbitro
 > entre o GSI e o polling. Sem ela, os dois disparam e você recebe relatório
@@ -240,7 +255,7 @@ risco, mesmo com o backoff que implementei.
 
 Este é o bloco que separa o CounTatic de um placar comum.
 
-### C.1 — Crosshair placement de verdade
+### C.1 — Crosshair placement de verdade ✅ IMPLEMENTADO
 
 **O problema:** `AimStatStrategy.calculateCrosshairPlacement` usa um limiar
 absoluto de ±5° de pitch que **ignora completamente a posição do inimigo**. Ele
@@ -264,7 +279,12 @@ No Java (AimStatStrategy):
   score = mediana dos erros (menor = melhor)
 ```
 
-### C.2 — `flashEfficiency` acima de 100%
+**Resultado:** implementado como desenhado. Efeito colateral corrigido junto:
+quando a partida não tem nenhum tiro medível (round sem confronto direto),
+`crosshairPlacementScore` agora fica `NULL` em vez do antigo `0.0` fabricado —
+`0.0` lido como "score perfeito" mentia sobre uma partida sem dado nenhum.
+
+### C.2 — `flashEfficiency` acima de 100% ✅ IMPLEMENTADO
 
 Hoje o numerador conta *cegamentos* e o denominador conta *flashes*: uma flash
 que cega 3 inimigos dá 300%. Separar em duas métricas honestas:
@@ -272,7 +292,7 @@ que cega 3 inimigos dá 300%. Separar em duas métricas honestas:
   (correlacionar `FLASH_BLINDED` com `FLASH_THROWN` por proximidade de tick, ±1 s)
 - `enemyBlindsPerFlash` = a razão atual, que legitimamente passa de 1
 
-### C.3 — Métricas novas agora possíveis
+### C.3 — Métricas novas agora possíveis ✅ IMPLEMENTADO
 
 O parser já emite os eventos; falta só calcular. **Nova:**
 `strategy/impl/ImpactStatStrategy.java`
@@ -288,11 +308,21 @@ O parser já emite os eventos; falta só calcular. **Nova:**
 Reaproveita `MatchEventRepository.findByMatchIdAndEventType`, que hoje é código
 morto, e o Strategy Pattern já montado (basta um `@Component` novo).
 
-### C.4 — MVP não está sendo emitido
+### C.4 — MVP não está sendo emitido ❌ EM ABERTO
 
-Registrei o handler de `RoundMVPAnnouncement`, mas o banco tem **0 eventos MVP**.
-Investigar se o CS2 emite esse evento em demos de Premier. Baixa prioridade: o
-número de MVPs já vem do Game Coordinator.
+O parser Go **registra e emite** o handler de `RoundMVPAnnouncement` — isso não
+mudou —, mas o banco continua com **zero linhas `MVP`** em `player_match_stats`
+(ou tabela equivalente de eventos). Ainda não investigado se o CS2 simplesmente
+não dispara esse evento em demos de Premier ou se há um filtro descartando-o no
+caminho. Baixa prioridade: o número de MVPs já vem do Game Coordinator.
+
+### C.5 — Extra não planejado: CS Rating e comparação por faixa ✅ IMPLEMENTADO
+
+Não estava neste plano. Captura do CS Rating do jogador (`RankTier`), guardado
+em `PlayerMatchStats`, e um `BaselineService` que usa esse dado para calcular
+**percentis por faixa** — ex.: "seu ADR está no percentil 70 entre jogadores da
+sua faixa" — exibidos na página `/m/{token}`. Sem isso, comparar números crus
+entre um jogador Silver e um Global Elite não diz muito.
 
 ---
 
@@ -314,6 +344,16 @@ número de MVPs já vem do Game Coordinator.
 **Prova de que a regressão principal é pega:** o fix de alinhamento foi
 temporariamente revertido e a suíte falhou em 2 testes; restaurado, voltou a
 14/14. Um teste de regressão que não falha quando o bug volta não vale nada.
+
+> **Atualização (2026-08-11):** a tabela acima é o retrato de 2026-08-09; a
+> tabela em si não foi remontada. O total atual, confirmado rodando as três
+> suítes, é **88 Java, 27 TypeScript, 7 Go**. Os 13 testes de
+> `notify.test.ts` estavam contados desde 2026-08-09, mas **não executavam de
+> verdade** — passavam sem exercitar o código, o que tornava o "todos
+> passando" acima enganoso para essa suíte especificamente. Corrigido neste
+> ciclo: os 13 testes agora fazem requisição HTTP de verdade via supertest,
+> exatamente o retrabalho que a seção D.1 (abaixo) já apontava como
+> necessário.
 
 ### Refactor necessário para testar
 
@@ -341,13 +381,19 @@ convertendo panic em erro HTTP.
 | **Java — corrida GSI vs polling** | `enqueueIfAbsent` concorrente deve gerar exatamente 1 linha |
 | **Go — `parser_test.go`** | com um `.dem` pequeno em `testdata/`: `DAMAGE > 0`, `tickRate == 64`, ticks monotônicos |
 
-Hoje `steam-bot/src/routes/notify.test.ts` é um stub que não faz nenhuma
-requisição HTTP — precisa ser reescrito com supertest, não só ampliado.
+Até 2026-08-11, `steam-bot/src/routes/notify.test.ts` era um stub que não fazia
+nenhuma requisição HTTP — precisava ser reescrito com supertest, não só
+ampliado. Reescrito desde então; ver a nota de atualização (2026-08-11) acima.
 
 ### D.2 — Pendências operacionais
 
 - ⚠️ **Rotacionar a Steam Web API Key.** A antiga está no histórico do git desde
-  o commit `6742558`; tirar do working tree não resolve. **Ainda pendente.**
+  o commit `6742558`; tirar do working tree não resolve — o valor continua
+  recuperável no histórico. **Ainda pendente, ação do usuário.**
+- ⚠️ **Reparsear as três partidas já armazenadas** com `POST
+  /api/matches/{id}/reparse` (A.4) antes que as demos expirem no CDN da Valve,
+  por volta de **2026-08-22** — depois disso a análise profunda dessas
+  partidas fica irrecuperável. **Ainda pendente, ação do usuário.**
 - A tabela `players` ganha ~10 linhas por partida analisada (todos os jogadores
   da partida, criados pelo upsert). São inertes (`autoFetchEnabled = false`),
   mas crescem sem limite. Decidir se vale purgar quem nunca se cadastrou.
