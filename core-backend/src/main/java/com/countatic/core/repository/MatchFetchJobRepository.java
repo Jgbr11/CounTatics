@@ -84,4 +84,7 @@ public interface MatchFetchJobRepository extends JpaRepository<MatchFetchJob, Lo
      * <p>Ordenado do mais recente para o mais antigo.</p>
      */
     List<MatchFetchJob> findByMatchIdOrderByIdDesc(Long matchId);
+
+    /** Já existe sondagem aberta para este jogador? Guarda de idempotência do GSI. */
+    boolean existsBySteamId64AndStatusIn(String steamId64, List<MatchFetchStatus> statuses);
 }
