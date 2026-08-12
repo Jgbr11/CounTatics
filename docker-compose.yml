@@ -1,5 +1,25 @@
 name: countatic
 
+# ═══════════════════════════════════════════════════════════════════
+# PUBLICAÇÃO DE PORTAS — todas presas a 127.0.0.1, de propósito.
+#
+# "8080:8080" liga em 0.0.0.0: qualquer host da rede local alcança a
+# API. Isso importa porque nenhum serviço aqui tem autenticação, e a
+# API expõe POST /api/matches/{id}/reparse, que APAGA uma partida,
+# seus rounds, seus eventos e as estatísticas — irreversível quando a
+# demo já saiu do CDN da Valve. O bot na 3000 envia mensagens na Steam
+# em nome da conta do usuário, e o MySQL na 3306 tem senha de dev.
+#
+# Prender em 127.0.0.1 não quebra nada: os serviços conversam entre si
+# pelo nome dentro da rede countatic-net (mysql-db, steam-bot,
+# parser-service), não pelas portas publicadas. Estas existem só para o
+# navegador e as ferramentas do próprio host — inclusive o CS2, que
+# manda o Game State Integration para http://127.0.0.1:8080/api/gsi.
+#
+# Se um dia a API precisar ser alcançada de outra máquina, o passo que
+# vem ANTES de reabrir a porta é colocar autenticação nela.
+# ═══════════════════════════════════════════════════════════════════
+
 services:
   # ═════════════════════════════════════════════════════════════════
   # 1. BANCO DE DADOS RELACIONAL (MySQL 8.4)
@@ -9,7 +29,7 @@ services:
     container_name: countatic-mysql
     restart: unless-stopped
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: countatic_root_dev
       MYSQL_DATABASE: countatic
@@ -36,7 +56,7 @@ services:
     container_name: countatic-core-backend
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/countatic?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: countatic
@@ -74,7 +94,7 @@ services:
     container_name: countatic-demo-parser
     restart: unless-stopped
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       PARSER_PORT: "8081"
     networks:
@@ -90,7 +110,7 @@ services:
     container_name: countatic-steam-bot
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - ./steam-bot/.env
     environment:
