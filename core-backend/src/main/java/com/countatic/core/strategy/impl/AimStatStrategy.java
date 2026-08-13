@@ -21,11 +21,20 @@ import java.util.*;
  *   <li><b>Kill/Death Ratio (K/D):</b> Razão entre kills e deaths.</li>
  * </ul>
  *
- * <p><b>Nota sobre Crosshair Placement:</b> O cálculo real envolve a análise do
- * ângulo vertical (pitch) de cada disparo em relação à posição vertical esperada
- * da cabeça do inimigo. Valores mais próximos de 0° (nível da cabeça) indicam
- * melhor posicionamento de mira. A fórmula exata será refinada em iterações
- * futuras após discussão com o usuário sobre a matemática.</p>
+ * <p><b>Nota sobre Crosshair Placement:</b> o cálculo é o <b>erro angular</b>, em
+ * graus, entre a direção da mira no instante do disparo e a direção até a cabeça
+ * do inimigo que o parser anexou ao evento. O score é a proporção de disparos com
+ * erro de até {@value #LIMIAR_BOA_MIRA_GRAUS}°, e {@code medianCrosshairErrorDegrees}
+ * publica a mediana do erro. Disparos sem inimigo no cone frontal não entram na
+ * conta: spray em parede não diz nada sobre posicionamento de mira.</p>
+ *
+ * <p><b>Ausência não é zero.</b> Cada métrica só é publicada quando o denominador
+ * dela existe — kills para o HS%, rounds para KPR/DPR, ao menos um duelo para o
+ * K/D, disparos avaliáveis para o crosshair. Chave ausente vira {@code NULL} na
+ * coluna de {@code player_match_stats} e sai da comparação do
+ * {@code BaselineService}; um {@code 0.0} inventado entraria nela como se fosse
+ * desempenho medido. O raciocínio completo está no comentário do bloco de
+ * crosshair em {@link #calculate}.</p>
  */
 @Slf4j
 @Component
@@ -48,7 +57,10 @@ public class AimStatStrategy implements StatCalculationStrategy {
 
         List<MatchEvent> allEvents = flattenEvents(match);
         Long playerId = player.getId();
-        int totalRounds = match.getTotalRounds();
+        // getTotalRounds() é Integer e pode vir nulo em partida ainda não
+        // consolidada — desempacotar direto seria NPE. Mesmo tratamento de
+        // ImpactStatStrategy e MatchAnalysisService.
+        int totalRounds = match.getTotalRounds() == null ? 0 : match.getTotalRounds();
 
         // ─── 1. Headshot Percentage ───────────────────────────────────────
         List<MatchEvent> kills = filterByActorAndType(allEvents, playerId, EventType.KILL);
@@ -56,31 +68,48 @@ public class AimStatStrategy implements StatCalculationStrategy {
                 .filter(e -> Boolean.TRUE.equals(e.getIsHeadshot()))
                 .count();
 
-        double hsPercentage = kills.isEmpty() ? 0.0 : (headshotKills * 100.0) / kills.size();
-        metrics.put("headshotPercentage", round2(hsPercentage));
-        insights.put("headshotPercentage", generateHsInsight(hsPercentage));
+        // Denominador: o número de kills. Sem kill nenhuma não existe
+        // "proporção de kills na cabeça" — 0/0 não é 0.
+        if (!kills.isEmpty()) {
+            double hsPercentage = (headshotKills * 100.0) / kills.size();
+            metrics.put("headshotPercentage", round2(hsPercentage));
+            insights.put("headshotPercentage", generateHsInsight(hsPercentage));
+        }
 
         // ─── 2. Kills per Round (KPR) ────────────────────────────────────
-        double kpr = totalRounds > 0 ? (double) kills.size() / totalRounds : 0.0;
-        metrics.put("killsPerRound", round2(kpr));
+        // Denominador: o total de rounds. 0 kills em 24 rounds é 0.0 medido e
+        // continua publicado; o que se omite é a partida sem round nenhum, em
+        // que a média não existe.
+        if (totalRounds > 0) {
+            metrics.put("killsPerRound", round2((double) kills.size() / totalRounds));
+        }
 
         // ─── 3. Deaths per Round (DPR) ───────────────────────────────────
         List<MatchEvent> deaths = filterByVictimAndType(allEvents, playerId, EventType.KILL);
-        double dpr = totalRounds > 0 ? (double) deaths.size() / totalRounds : 0.0;
-        metrics.put("deathsPerRound", round2(dpr));
+        // Mesmo denominador do KPR, mas é a única métrica com
+        // maiorEhMelhor = false no BaselineService: aqui um 0.0 fabricado não
+        // afunda a distribuição alheia, vira percentil 100 para quem não jogou.
+        if (totalRounds > 0) {
+            metrics.put("deathsPerRound", round2((double) deaths.size() / totalRounds));
+        }
 
         // ─── 4. K/D Ratio ────────────────────────────────────────────────
-        double kdRatio = deaths.isEmpty() ? kills.size() : (double) kills.size() / deaths.size();
-        metrics.put("kdRatio", round2(kdRatio));
-        insights.put("kdRatio", generateKdInsight(kdRatio));
+        // Denominador: os duelos. Sem kill E sem morte o jogador não produziu
+        // duelo algum e não há razão a calcular. Zero mortes COM kills é outra
+        // coisa: é a convenção do cenário (K/D = número de kills) e é dado real.
+        if (!kills.isEmpty() || !deaths.isEmpty()) {
+            double kdRatio = deaths.isEmpty()
+                    ? kills.size()
+                    : (double) kills.size() / deaths.size();
+            metrics.put("kdRatio", round2(kdRatio));
+            insights.put("kdRatio", generateKdInsight(kdRatio));
+        }
 
         // ─── 5. Crosshair Placement Score ────────────────────────────────
-        // Baseado nos eventos WEAPON_FIRE: analisa o ângulo vertical (pitch/viewAngleY)
-        // O score mede a % de disparos em que o pitch estava dentro de um threshold
-        // "ideal" para headshot level (próximo de 0° no eixo vertical).
-        //
-        // NOTA: A fórmula será refinada quando discutirmos a matemática detalhada.
-        // Por ora, usamos um cálculo simplificado baseado em threshold de ângulo.
+        // Baseado nos eventos WEAPON_FIRE: para cada disparo, o ângulo entre a
+        // direção da mira e a direção até a cabeça do inimigo anexada pelo parser.
+        // O score é a % de disparos com erro até LIMIAR_BOA_MIRA_GRAUS; a mediana
+        // do erro é publicada ao lado, por ser diretamente interpretável.
         List<MatchEvent> weaponFires = filterByActorAndType(allEvents, playerId, EventType.WEAPON_FIRE);
         List<Double> erros = errosAngulares(weaponFires);
 
