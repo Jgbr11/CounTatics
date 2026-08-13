@@ -28,7 +28,7 @@ leva os itens.
 → Troque a senha na Steam. Depois atualize `steam-bot/.env` e recrie o container:
 
 ```powershell
-docker compose up -d --force-recreate steam-bot
+docker compose up -d --build steam-bot
 ```
 
 ### 1.2 Refresh token da sessão Steam (`steam-bot/refreshToken.txt`)
@@ -42,13 +42,16 @@ sinal de que a sessão antiga caiu — que é o resultado desejado.
 
 ### 1.3 Steam Web API Key
 
-Estava no `.env` da raiz, rastreado desde `6742558`.
+Estava **hardcoded no `docker-compose.yml`**, nos commits `98f4fc1` e `90c2f98`
+— os dois publicados em `origin/main`. É pior do que estar num `.env`: o
+`docker-compose.yml` é dos primeiros arquivos que alguém abre ao clonar o
+repositório.
 
 → Gere uma nova em <https://steamcommunity.com/dev/apikey>, coloque no `.env`
-da raiz e recrie o backend:
+da raiz e reconstrua o backend:
 
 ```powershell
-docker compose up -d --force-recreate core-backend
+docker compose up -d --build core-backend
 ```
 
 ### 1.4 Game Authentication Code — **confirme se era real**
@@ -67,18 +70,43 @@ partidas pela API da Valve.
 
 ---
 
-## 2. Adicionar o `GSI_TOKEN` ao `.env` da raiz
+## 2. Completar o `.env` da raiz
 
-O gatilho instantâneo não funciona sem ele. Token vazio faz `POST /api/gsi`
-recusar tudo — de propósito, para não aceitar payload de qualquer processo da
-máquina.
+O `.env` da raiz precisa de três chaves que hoje **não estão nele**:
+
+```
+STEAM_WEB_API_KEY=
+BOT_STEAM_ID=
+GSI_TOKEN=
+```
+
+Só a primeira é bloqueante: no `docker-compose.yml` ela usa a sintaxe `:?`, que
+aborta com mensagem clara em vez de subir o backend com uma chave vazia e dar
+403 silencioso a cada ciclo. Se ela faltar, `docker compose up` falha com
+*"required variable STEAM_WEB_API_KEY is missing a value"*. As outras duas usam
+`:-` e aceitam vazio.
+
+> **Por que sumiram.** O `.env` chegou a ser versionado e foi removido do
+> rastreamento; ao trazer o arquivo de volta ao disco, o que voltou foi a única
+> versão que existia em commit — de quando o projeto tinha só as credenciais do
+> bot. As três chaves acima nunca chegaram a ser commitadas, então o git não as
+> tem. Precisam ser preenchidas à mão.
+
+**`STEAM_WEB_API_KEY`** — a nova, gerada no item 1.3.
+
+**`BOT_STEAM_ID`** — o SteamID64 da conta do bot. Serve para impedir que ela
+seja cadastrada como jogador, o que geraria 403 da Valve a cada ciclo do
+scheduler. Pode ficar vazio, ao custo de perder essa proteção.
+
+**`GSI_TOKEN`** — segredo compartilhado com o CS2. Sem ele o gatilho instantâneo
+não funciona: token vazio faz `POST /api/gsi` recusar tudo, de propósito, para
+não aceitar payload de qualquer processo da máquina.
 
 ```powershell
 [guid]::NewGuid().ToString()   # gera um valor
 ```
 
-Coloque em `GSI_TOKEN=` no `.env` da raiz. **O mesmo valor** vai no `.cfg` do
-item 5.
+**O mesmo valor** vai no `.cfg` do item 5.
 
 ---
 
@@ -161,16 +189,34 @@ sintoma era silêncio total.
 
 ---
 
-## 6. Recriar os containers
+## 6. Reconstruir os containers
 
-As portas publicadas passaram a ligar em `127.0.0.1` em vez de `0.0.0.0`.
-Isso só vale depois de recriar:
+Há muito código novo desde a última imagem: as correções de métrica, o gatilho
+GSI e a identidade visual das telas web. Nada disso aparece sem reconstruir.
 
 ```powershell
-docker compose up -d --force-recreate
+docker compose up -d --build
 ```
 
-Nada quebra: os serviços conversam entre si por nome dentro da rede
+⚠️ **`--build` e `--force-recreate` não são a mesma coisa**, e confundir os dois
+custa uma hora de "por que não mudou nada":
+
+| Você mudou | Comando |
+|---|---|
+| Código (Java, TypeScript, Go) | `docker compose up -d --build` |
+| Só o `.env` (credencial, `GSI_TOKEN`) | `docker compose up -d --force-recreate` |
+
+`--force-recreate` recria o **container** a partir da imagem que já existe — não
+recompila nada. Variável de ambiente é lida na criação do container, por isso
+ali ele basta. Já código só entra na imagem, e quem reconstrói a imagem é
+`--build`.
+
+Na dúvida, `--build` cobre os dois casos.
+
+### O que mais muda com esta recriação
+
+As portas publicadas passam a ligar em `127.0.0.1` em vez de `0.0.0.0`. Nada
+quebra: os serviços conversam entre si por nome dentro da rede
 `countatic-net`, não pelas portas publicadas. O que muda é que outra máquina da
 sua rede local deixa de alcançar a API — o que importa porque nenhum serviço
 tem autenticação e `/reparse` é destrutivo.
