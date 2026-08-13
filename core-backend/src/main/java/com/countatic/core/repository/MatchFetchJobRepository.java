@@ -69,4 +69,22 @@ public interface MatchFetchJobRepository extends JpaRepository<MatchFetchJob, Lo
     boolean existsBySteamId64AndShareCodeAndStatusNotIn(String steamId64,
                                                         String shareCode,
                                                         List<MatchFetchStatus> statuses);
+
+    /**
+     * Jobs que produziram esta partida — é deles que sai a URL da demo no CDN.
+     *
+     * <p>Lista, não {@code Optional}: a mesma partida pode ser alcançada por
+     * mais de um job quando dois jogadores da mesma sessão a reportam
+     * separadamente (ver {@code MatchJobWorker.analyzeDemo}, que reaproveita
+     * a Match já analisada e aponta o segundo job para ela). A constraint
+     * única em {@code match_fetch_jobs} é {@code (steamId64, shareCode)}, não
+     * {@code match_id} — mais de uma linha com o mesmo {@code match_id} é
+     * estado alcançável, não hipotético.</p>
+     *
+     * <p>Ordenado do mais recente para o mais antigo.</p>
+     */
+    List<MatchFetchJob> findByMatchIdOrderByIdDesc(Long matchId);
+
+    /** Já existe sondagem aberta para este jogador? Guarda de idempotência do GSI. */
+    boolean existsBySteamId64AndStatusIn(String steamId64, List<MatchFetchStatus> statuses);
 }

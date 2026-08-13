@@ -21,10 +21,22 @@ import java.util.*;
  *   <li><b>Smokes Thrown per Round:</b> Média de smokes lançadas por round.</li>
  * </ul>
  *
- * <p><b>Nota sobre Flash Efficiency:</b> Diferente de simplesmente contar flashes lançadas,
- * esta métrica considera os eventos {@code FLASH_BLINDED} associados a cada flash. Uma flash
- * que cega 3 inimigos conta mais do que uma que cega apenas 1. O campo {@code isEnemyFlash}
- * distingue entre flash em inimigo (útil) e em aliado (prejudicial).</p>
+ * <p><b>Nota sobre Flash Efficiency:</b> é a <b>porcentagem de flashes lançadas que
+ * cegaram ao menos um inimigo</b>. Cada evento {@code FLASH_BLINDED} é atribuído à
+ * flash mais próxima no tempo e cada flash conta <b>no máximo uma vez</b> — é isso
+ * que impede o número de passar de 100%. Quantos inimigos cada flash cega é medido
+ * separadamente, por {@code enemyBlindsPerFlash}, essa sim uma razão que passa de 1
+ * legitimamente. O campo {@code isEnemyFlash} distingue flash em inimigo (útil) de
+ * flash em aliado (prejudicial).</p>
+ *
+ * <p><b>Ausência não é zero.</b> As métricas derivadas só são publicadas quando o
+ * denominador delas existe: flashes lançadas para {@code flashEfficiency} e
+ * {@code enemyBlindsPerFlash}, cegamentos para {@code teamFlashRate} e
+ * {@code avgEnemyFlashDuration}, rounds para as médias por round. Quem não lançou
+ * flash nenhuma não tem eficiência ruim — não tem eficiência. Já os contadores
+ * absolutos ({@code totalFlashesThrown}, {@code totalUtilityDamage} etc.) saem
+ * sempre: "lancei zero flashes" é fato medido. O raciocínio completo está no
+ * comentário do bloco de crosshair em {@code AimStatStrategy.calculate}.</p>
  */
 @Slf4j
 @Component
@@ -52,7 +64,9 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
 
         List<MatchEvent> allEvents = flattenEvents(match);
         Long playerId = player.getId();
-        int totalRounds = match.getTotalRounds();
+        // getTotalRounds() é Integer e pode vir nulo; desempacotar direto seria
+        // NPE. Mesmo tratamento de ImpactStatStrategy e MatchAnalysisService.
+        int totalRounds = match.getTotalRounds() == null ? 0 : match.getTotalRounds();
 
         // ─── 1. Flash Analysis ────────────────────────────────────────────
         calculateFlashMetrics(allEvents, playerId, totalRounds, metrics, insights);
@@ -157,45 +171,62 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
         // praticamente no mesmo instante.
         long flashesEfetivas = contarFlashesEfetivas(flashesThrown, flashBlinds);
 
-        double flashEfficiency = totalFlashesThrown > 0
-                ? (flashesEfetivas * 100.0) / totalFlashesThrown
-                : 0.0;
-        metrics.put("flashEfficiency", round2(flashEfficiency));
-        insights.put("flashEfficiency", generateFlashEfficiencyInsight(flashEfficiency));
+        // Denominador: flashes lançadas. Quem não lançou flash nenhuma não tem
+        // eficiência baixa — não tem eficiência. Esta é a coluna mais exposta ao
+        // problema descrito em AimStatStrategy.calculate: "não joguei flash nesta
+        // partida" é comuníssimo, flashEfficiency está na whitelist do
+        // BaselineService com maiorEhMelhor = true, e cada 0.0 fabricado afunda a
+        // distribuição e infla o percentil de quem lançou de verdade.
+        //
+        // Lançar flashes e não cegar ninguém é OUTRA coisa: aí o denominador
+        // existe e 0.0 é desempenho medido, publicado normalmente.
+        if (totalFlashesThrown > 0) {
+            double flashEfficiency = (flashesEfetivas * 100.0) / totalFlashesThrown;
+            metrics.put("flashEfficiency", round2(flashEfficiency));
+            insights.put("flashEfficiency", generateFlashEfficiencyInsight(flashEfficiency));
 
-        // Quantos inimigos cada flash cega, em média. Diferente da eficiência,
-        // esta razão passa de 1 legitimamente — é justamente o que mede uma
-        // flash bem colocada, que pega o time inteiro.
-        metrics.put("enemyBlindsPerFlash", totalFlashesThrown > 0
-                ? round2((double) enemyBlinds / totalFlashesThrown)
-                : 0.0);
-
-        // Team Flash Rate: % de blinds que foram em aliados
-        long totalBlinds = enemyBlinds + teamBlinds;
-        double teamFlashRate = totalBlinds > 0
-                ? (teamBlinds * 100.0) / totalBlinds
-                : 0.0;
-        metrics.put("teamFlashRate", round2(teamFlashRate));
-        if (teamFlashRate > 30.0) {
-            insights.put("teamFlashRate",
-                    String.format("⚠️ %.1f%% das suas flashes cegaram aliados! Cuidado com os line-ups.", teamFlashRate));
+            // Quantos inimigos cada flash cega, em média. Mesmo denominador.
+            // Diferente da eficiência, esta razão passa de 1 legitimamente — é
+            // justamente o que mede uma flash bem colocada, que pega o time inteiro.
+            metrics.put("enemyBlindsPerFlash", round2((double) enemyBlinds / totalFlashesThrown));
         }
 
-        // Average Enemy Flash Blind Duration
+        // Team Flash Rate: % de blinds que foram em aliados.
+        // Denominador: os cegamentos causados. Sem cegar ninguém não há proporção
+        // de cegamentos em aliado. Cuidado: cegar só inimigos dá 0.0 legítimo — o
+        // denominador existe — e continua sendo publicado.
+        long totalBlinds = enemyBlinds + teamBlinds;
+        if (totalBlinds > 0) {
+            double teamFlashRate = (teamBlinds * 100.0) / totalBlinds;
+            metrics.put("teamFlashRate", round2(teamFlashRate));
+            if (teamFlashRate > 30.0) {
+                insights.put("teamFlashRate",
+                        String.format("⚠️ %.1f%% das suas flashes cegaram aliados! Cuidado com os line-ups.", teamFlashRate));
+            }
+        }
+
+        // Average Enemy Flash Blind Duration.
+        // O OptionalDouble já é a resposta certa: vazio significa que não houve
+        // cegamento de inimigo com duração medida, e "duração média zero" seria
+        // uma afirmação sobre flashes que não existiram.
         OptionalDouble avgDuration = flashBlinds.stream()
                 .filter(e -> Boolean.TRUE.equals(e.getIsEnemyFlash()))
                 .filter(e -> e.getFlashDurationSeconds() != null)
                 .mapToDouble(MatchEvent::getFlashDurationSeconds)
                 .average();
-        metrics.put("avgEnemyFlashDuration", round2(avgDuration.orElse(0.0)));
+        if (avgDuration.isPresent()) {
+            metrics.put("avgEnemyFlashDuration", round2(avgDuration.getAsDouble()));
+        }
 
         // Totals
         metrics.put("totalFlashesThrown", (double) totalFlashesThrown);
         metrics.put("totalEnemyBlinds", (double) enemyBlinds);
         metrics.put("totalTeamBlinds", (double) teamBlinds);
-        metrics.put("flashesPerRound", totalRounds > 0
-                ? round2((double) totalFlashesThrown / totalRounds)
-                : 0.0);
+        // Denominador: os rounds jogados — mesmo caso de smokesPerRound. Não
+        // lançar flash nenhuma em 24 rounds é 0.0 medido e continua publicado.
+        if (totalRounds > 0) {
+            metrics.put("flashesPerRound", round2((double) totalFlashesThrown / totalRounds));
+        }
     }
 
     // ─── Utility Damage ───────────────────────────────────────────────
@@ -216,13 +247,16 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
                 .mapToInt(MatchEvent::getDamageAmount)
                 .sum();
 
-        double utilityDmgPerRound = totalRounds > 0
-                ? (double) totalUtilityDamage / totalRounds
-                : 0.0;
-
         metrics.put("totalUtilityDamage", (double) totalUtilityDamage);
-        metrics.put("utilityDamagePerRound", round2(utilityDmgPerRound));
-        insights.put("utilityDamage", generateUtilityDamageInsight(utilityDmgPerRound));
+
+        // Denominador: os rounds jogados. Um jogador com rounds e 0 de dano de
+        // utilitária tem 0.0 de verdade e continua publicado; sem round nenhum
+        // não existe média por round a publicar.
+        if (totalRounds > 0) {
+            double utilityDmgPerRound = (double) totalUtilityDamage / totalRounds;
+            metrics.put("utilityDamagePerRound", round2(utilityDmgPerRound));
+            insights.put("utilityDamage", generateUtilityDamageInsight(utilityDmgPerRound));
+        }
     }
 
     // ─── Smoke Usage ──────────────────────────────────────────────────
@@ -233,16 +267,20 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
                                       Map<String, String> insights) {
 
         long smokesThrown = filterByActorAndType(allEvents, playerId, EventType.SMOKE_THROWN).size();
-        double smokesPerRound = totalRounds > 0
-                ? (double) smokesThrown / totalRounds
-                : 0.0;
 
         metrics.put("totalSmokesThrown", (double) smokesThrown);
-        metrics.put("smokesPerRound", round2(smokesPerRound));
 
-        if (smokesPerRound < 0.3 && totalRounds > 0) {
-            insights.put("smokeUsage",
-                    String.format("Você lançou apenas %.1f smokes por round. Use mais smokes para controlar o mapa!", smokesPerRound));
+        // Denominador: os rounds jogados. Não lançar smoke nenhuma em 24 rounds
+        // é 0.0 medido — e é justamente o que o insight abaixo aponta. Sem round
+        // nenhum, a média não existe.
+        if (totalRounds > 0) {
+            double smokesPerRound = (double) smokesThrown / totalRounds;
+            metrics.put("smokesPerRound", round2(smokesPerRound));
+
+            if (smokesPerRound < 0.3) {
+                insights.put("smokeUsage",
+                        String.format("Você lançou apenas %.1f smokes por round. Use mais smokes para controlar o mapa!", smokesPerRound));
+            }
         }
     }
 

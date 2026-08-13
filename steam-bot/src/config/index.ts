@@ -1,9 +1,11 @@
 /**
  * Configuração centralizada do Steam Bot.
- * 
- * Todas as variáveis de ambiente são validadas aqui na inicialização.
- * Se alguma variável obrigatória estiver faltando, o processo encerra
- * imediatamente com uma mensagem clara.
+ *
+ * A validação das variáveis de ambiente acontece sob demanda, na primeira
+ * chamada a `getConfig()` — não no carregamento do módulo. Isso permite que
+ * outros módulos importem tipos/enums daqui (ou de módulos que o importam
+ * transitivamente) sem precisar de credenciais da Steam presentes, como em
+ * testes que só exercitam rotas HTTP com dublês.
  */
 
 interface BotConfig {
@@ -28,14 +30,10 @@ function loadConfig(): BotConfig {
   const password = process.env.STEAM_PASSWORD;
 
   if (!username || !password) {
-    console.error(
-      "═══════════════════════════════════════════════════════\n" +
-      "  ERRO: Variáveis de ambiente obrigatórias não definidas!\n" +
-      "  Defina STEAM_USERNAME e STEAM_PASSWORD no arquivo .env\n" +
-      "  Use .env.example como referência.\n" +
-      "═══════════════════════════════════════════════════════"
+    throw new Error(
+      "Variáveis de ambiente obrigatórias não definidas: STEAM_USERNAME e STEAM_PASSWORD. " +
+      "Use .env.example como referência."
     );
-    process.exit(1);
   }
 
   return {
@@ -51,5 +49,23 @@ function loadConfig(): BotConfig {
   };
 }
 
-export const config = loadConfig();
+let cached: BotConfig | null = null;
+
+/**
+ * Configuração validada, carregada na primeira chamada.
+ *
+ * Antes isto era `export const config = loadConfig()`, avaliado no import.
+ * Qualquer módulo que alcançasse `config` — inclusive um arquivo de teste que
+ * só queria um enum de `client.ts` — derrubava o processo se as credenciais da
+ * Steam não estivessem no ambiente. Testar rotas HTTP com dublês não exige
+ * credencial nenhuma; a validação precisa acontecer quando o bot vai de fato
+ * logar, não quando o módulo é lido.
+ */
+export function getConfig(): BotConfig {
+  if (cached === null) {
+    cached = loadConfig();
+  }
+  return cached;
+}
+
 export type { BotConfig };

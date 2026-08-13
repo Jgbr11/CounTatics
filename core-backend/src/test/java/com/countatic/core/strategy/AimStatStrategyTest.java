@@ -197,6 +197,219 @@ class AimStatStrategyTest {
         assertThat(result.getMetrics().get("evaluatedShots")).isNull();
     }
 
+    @Test
+    @DisplayName("Não publica crosshairPlacementScore quando nenhum disparo tem alvo — "
+            + "0.0 entraria na base de comparação como se fosse desempenho real")
+    void naoPublicaCrosshairSemDisparoAvaliavel() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+
+        // Disparo com ângulo de visão, mas sem a posição do inimigo: é
+        // exatamente o formato que o parser Go produzia antes do commit 473f198,
+        // e é o que está gravado nas partidas já analisadas.
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.WEAPON_FIRE)
+                .actor(testPlayer)
+                .tick(100)
+                .actorPositionX(0.0).actorPositionY(0.0).actorPositionZ(64.0)
+                .viewAngleX(0.0).viewAngleY(0.0)
+                .build());
+
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics())
+                .doesNotContainKey("crosshairPlacementScore")
+                .doesNotContainKey("medianCrosshairErrorDegrees")
+                .doesNotContainKey("evaluatedShots");
+    }
+
+    @Test
+    @DisplayName("Publica crosshairPlacementScore quando o disparo tem a cabeça do inimigo anexada")
+    void publicaCrosshairComDisparoAvaliavel() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+
+        // Mira exatamente sobre a cabeça: yaw 0 aponta para +X na convenção
+        // Source, e o alvo está 100 unidades à frente, na mesma altura dos olhos.
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.WEAPON_FIRE)
+                .actor(testPlayer)
+                .tick(100)
+                .actorPositionX(0.0).actorPositionY(0.0).actorPositionZ(64.0)
+                .victimPositionX(100.0).victimPositionY(0.0).victimPositionZ(64.0)
+                .viewAngleX(0.0).viewAngleY(0.0)
+                .build());
+
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics().get("crosshairPlacementScore")).isEqualTo(100.0);
+        assertThat(result.getMetrics().get("evaluatedShots")).isEqualTo(1.0);
+        assertThat(result.getMetrics().get("medianCrosshairErrorDegrees")).isEqualTo(0.0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  AUSÊNCIA ≠ ZERO
+    //
+    //  Cada métrica tem dois testes: denominador zero → chave ausente,
+    //  e denominador > 0 com numerador 0 → chave presente valendo 0.0.
+    //  O segundo é o que impede a correção de virar um bug pior, apagando
+    //  desempenho real de quem jogou e foi mal.
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("sem kills não publica headshotPercentage — não existe proporção de 0 kills")
+    void semKillsNaoPublicaHeadshotPercentage() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+        // Só uma morte do jogador: ele participou da partida, mas não matou ninguém.
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.KILL)
+                .victim(testPlayer)
+                .build());
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics()).doesNotContainKey("headshotPercentage");
+        assertThat(result.getInsights()).doesNotContainKey("headshotPercentage");
+    }
+
+    @Test
+    @DisplayName("com kills e nenhum headshot publica headshotPercentage = 0.0 — é desempenho medido")
+    void killsSemHeadshotPublicamZeroReal() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+        for (int i = 0; i < 3; i++) {
+            round.addEvent(MatchEvent.builder()
+                    .eventType(EventType.KILL)
+                    .actor(testPlayer)
+                    .isHeadshot(false)
+                    .build());
+        }
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics()).containsEntry("headshotPercentage", 0.0);
+    }
+
+    @Test
+    @DisplayName("sem rounds não publica killsPerRound nem deathsPerRound")
+    void semRoundsNaoPublicaMediasPorRound() {
+        Match semRounds = Match.builder()
+                .id(101L)
+                .mapName("de_mirage")
+                .totalRounds(0)
+                .build();
+
+        PlayerStatResult result = aimStatStrategy.calculate(semRounds, testPlayer);
+
+        assertThat(result.getMetrics())
+                .doesNotContainKey("killsPerRound")
+                .doesNotContainKey("deathsPerRound");
+    }
+
+    /**
+     * {@code deathsPerRound} é a única métrica com {@code maiorEhMelhor = false}
+     * no BaselineService: um 0.0 fabricado aqui não afundaria a distribuição —
+     * daria percentil 100 a quem não jogou. Mas 0 mortes em 10 rounds é um round
+     * de sobrevivência perfeita, e apagar isso seria pior que o bug original.
+     */
+    @Test
+    @DisplayName("com rounds e sem mortes publica deathsPerRound = 0.0 — sobreviver é desempenho")
+    void roundsSemMortesPublicamZeroReal() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.KILL)
+                .actor(testPlayer)
+                .isHeadshot(true)
+                .build());
+        testMatch.addRound(round); // totalRounds = 10
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics()).containsEntry("deathsPerRound", 0.0);
+        assertThat(result.getMetrics()).containsEntry("killsPerRound", 0.1);
+    }
+
+    @Test
+    @DisplayName("sem kills e sem mortes não publica kdRatio — não houve duelo nenhum")
+    void semDuelosNaoPublicaKdRatio() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+        // Um evento qualquer que não seja duelo, só para a partida não ficar vazia.
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.SMOKE_THROWN)
+                .actor(testPlayer)
+                .build());
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics()).doesNotContainKey("kdRatio");
+        assertThat(result.getInsights()).doesNotContainKey("kdRatio");
+    }
+
+    /**
+     * 0 mortes COM kills não é ausência de denominador: é a convenção do cenário
+     * competitivo (K/D = número de kills) e precisa continuar sendo publicada.
+     */
+    @Test
+    @DisplayName("kills sem nenhuma morte publica kdRatio igual ao número de kills")
+    void killsSemMortesMantemConvencao() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+        for (int i = 0; i < 2; i++) {
+            round.addEvent(MatchEvent.builder()
+                    .eventType(EventType.KILL)
+                    .actor(testPlayer)
+                    .isHeadshot(false)
+                    .build());
+        }
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics()).containsEntry("kdRatio", 2.0);
+    }
+
+    /**
+     * 0 kills COM mortes tem denominador: o jogador entrou em duelos e perdeu.
+     * K/D 0.0 aqui é desempenho medido, não ausência.
+     */
+    @Test
+    @DisplayName("mortes sem nenhuma kill publica kdRatio = 0.0 — perder duelos é desempenho")
+    void mortesSemKillsPublicamZeroReal() {
+        Round round = Round.builder().id(1L).roundNumber(1).build();
+        round.addEvent(MatchEvent.builder()
+                .eventType(EventType.KILL)
+                .victim(testPlayer)
+                .build());
+        testMatch.addRound(round);
+
+        PlayerStatResult result = aimStatStrategy.calculate(testMatch, testPlayer);
+
+        assertThat(result.getMetrics()).containsEntry("kdRatio", 0.0);
+    }
+
+    /**
+     * {@code getTotalRounds()} é {@code Integer}: desempacotá-lo direto num
+     * {@code int} explodia em NPE numa partida ainda não consolidada.
+     */
+    @Test
+    @DisplayName("totalRounds nulo não lança NPE")
+    void totalRoundsNuloNaoQuebra() {
+        Match semTotal = Match.builder()
+                .id(102L)
+                .mapName("de_mirage")
+                .build();
+
+        PlayerStatResult result = aimStatStrategy.calculate(semTotal, testPlayer);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getMetrics())
+                .doesNotContainKey("killsPerRound")
+                .doesNotContainKey("deathsPerRound");
+    }
+
     /** Monta um WEAPON_FIRE com posição dos olhos, mira e cabeça do inimigo. */
     private MatchEvent disparo(double yaw, double pitch,
                                double olhoX, double olhoY, double olhoZ,

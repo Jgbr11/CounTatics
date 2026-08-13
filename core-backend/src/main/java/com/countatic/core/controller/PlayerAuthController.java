@@ -26,7 +26,7 @@ public class PlayerAuthController {
 
     /**
      * Forma geral do Game Authentication Code do CS2: três grupos alfanuméricos
-     * separados por hífen (ex: {@code 8TD6-UWWHY-F7MJ}).
+     * separados por hífen (ex: {@code ABCD-EFGHI-JKLM}).
      *
      * <p>Deliberadamente <b>não</b> fixa o tamanho exato de cada grupo. Só temos
      * amostras reais suficientes para confirmar o formato geral, e uma regra
@@ -83,7 +83,7 @@ public class PlayerAuthController {
                     "success", false,
                     "error", "Game Authentication Code inválido. "
                             + "Esperado: três grupos alfanuméricos separados por hífen "
-                            + "(ex: 8TD6-UWWHY-F7MJ). Gere o seu em "
+                            + "(ex: ABCD-EFGHI-JKLM). Gere o seu em "
                             + "CS2 → Configurações → Game Authentication Code."
             ));
         }

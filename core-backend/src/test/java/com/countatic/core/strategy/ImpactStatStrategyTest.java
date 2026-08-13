@@ -73,11 +73,33 @@ class ImpactStatStrategyTest {
         assertEquals(100.0, m.get("totalDamage"), "só o dano em inimigo conta");
     }
 
+    /**
+     * O denominador do ADR existe (1 round jogado), então 0 de dano é 0.0
+     * <b>medido</b> e precisa continuar sendo publicado — omitir aqui apagaria
+     * desempenho real de quem jogou mal.
+     */
     @Test
     @DisplayName("partida sem dano não quebra e devolve ADR zero")
     void semDanoNaoQuebra() {
         var m = calcular(partida(1, round(1, Team.CT))).getMetrics();
+        assertTrue(m.containsKey("adr"), "com round jogado o denominador existe");
         assertEquals(0.0, m.get("adr"));
+    }
+
+    /**
+     * Sem round nenhum não há "dano por round" a calcular. Publicar 0.0 colocaria
+     * a linha na base de comparação do BaselineService como se fosse desempenho
+     * real; a chave ausente vira NULL e sai da comparação.
+     */
+    @Test
+    @DisplayName("sem rounds o ADR não é publicado — 0/0 não é 0")
+    void semRoundsNaoPublicaAdr() {
+        var resultado = calcular(partida(0));
+
+        assertFalse(resultado.getMetrics().containsKey("adr"));
+        assertFalse(resultado.getInsights().containsKey("adr"));
+        // O absoluto continua: dano total 0 é fato medido.
+        assertEquals(0.0, resultado.getMetrics().get("totalDamage"));
     }
 
     // ═══════════════════════════════════════════════════════════════

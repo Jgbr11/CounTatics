@@ -105,10 +105,16 @@ public class ImpactStatStrategy implements StatCalculationStrategy {
         }
 
         // ─── ADR ─────────────────────────────────────────────────────────
-        double adr = totalRounds > 0 ? (double) totalDamage / totalRounds : 0.0;
-        metrics.put("adr", round2(adr));
+        // Denominador: os rounds jogados. Zero de dano em 24 rounds é 0.0 medido
+        // e continua publicado; sem round nenhum não há média por round — e um
+        // 0.0 fabricado entraria na base do BaselineService como desempenho real
+        // (mesmo raciocínio do bloco de crosshair em AimStatStrategy.calculate).
         metrics.put("totalDamage", (double) totalDamage);
-        insights.put("adr", insightAdr(adr));
+        if (totalRounds > 0) {
+            double adr = (double) totalDamage / totalRounds;
+            metrics.put("adr", round2(adr));
+            insights.put("adr", insightAdr(adr));
+        }
 
         // ─── Trades ──────────────────────────────────────────────────────
         metrics.put("tradeKills", (double) tradeKills);

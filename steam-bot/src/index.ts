@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
-import { config } from "./config";
+import { getConfig } from "./config";
 import { SteamClientManager } from "./steam/client";
 import { createRouter } from "./routes/notify";
 import { createMatchRoutes } from "./routes/match";
@@ -13,9 +13,15 @@ import logger from "./utils/logger";
 /**
  * Entry point do CounTatic Steam Bot.
  *
- * Fluxo de inicialização:
+ * Fluxo de inicialização.
+ *
+ * Antes de `main()`, no carregamento deste módulo:
  * 1. Carregar variáveis de ambiente (.env)
- * 2. Validar configuração (STEAM_USERNAME, STEAM_PASSWORD)
+ * 2. Validar configuração (STEAM_USERNAME, STEAM_PASSWORD) — `getConfig()` é
+ *    preguiçoso, então a chamada no fim do arquivo força a validação e encerra
+ *    o processo com mensagem clara se faltar credencial
+ *
+ * Dentro de `main()`:
  * 3. Conectar ao Steam via steam-user
  * 4. Iniciar servidor Express (POST /notify, GET /health)
  * 5. Aguardar webhooks do Core Backend (Java)
@@ -56,7 +62,7 @@ async function main(): Promise<void> {
   app.use("/", createDiagRoutes(steamClient));
 
   // ─── 3. Iniciar servidor HTTP ───────────────────────────────────
-  const port = config.server.port;
+  const port = getConfig().server.port;
   const server = app.listen(port, () => {
     logger.info(`🚀 Servidor HTTP iniciado na porta ${port}`);
     logger.info(`   Endpoints disponíveis:`);
@@ -95,6 +101,21 @@ async function main(): Promise<void> {
   process.on("unhandledRejection", (reason) => {
     logger.error(`Promise rejection não tratada: ${reason}`);
   });
+}
+
+// ─── Validar configuração cedo ──────────────────────────────────────
+// getConfig() agora só valida quando chamado; sem isto, um bot sem
+// credenciais só descobriria isso ao tentar logar no Steam, tarde demais
+// para a mensagem de erro clara que este projeto sempre teve.
+try {
+  getConfig();
+} catch (erro) {
+  console.error(
+    "═══════════════════════════════════════════════════════\n" +
+    `  ERRO DE CONFIGURAÇÃO: ${(erro as Error).message}\n` +
+    "═══════════════════════════════════════════════════════"
+  );
+  process.exit(1);
 }
 
 // ─── Executar ─────────────────────────────────────────────────────

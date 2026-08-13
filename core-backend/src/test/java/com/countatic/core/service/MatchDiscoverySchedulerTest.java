@@ -58,7 +58,7 @@ class MatchDiscoverySchedulerTest {
         jogador = playerRepository.save(Player.builder()
                 .steamId64(STEAM_ID)
                 .displayName("JGBR11")
-                .authCode("8TD6-UWWHY-F7MJ")
+                .authCode("ABCD-EFGHI-JKLM")
                 .latestShareCode(CODIGO_ANTIGO)
                 .autoFetchEnabled(true)
                 .build());
