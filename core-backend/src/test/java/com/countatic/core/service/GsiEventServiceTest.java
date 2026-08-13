@@ -24,7 +24,7 @@ class GsiEventServiceTest {
     private MatchFetchJobService jobService;
     private MatchFetchJobRepository jobRepository;
     private PlayerRepository playerRepository;
-    private SteamBotClientService botClient;
+    private GsiPreliminaryReportService preliminaryReportService;
     private GsiEventService service;
 
     @BeforeEach
@@ -32,10 +32,10 @@ class GsiEventServiceTest {
         jobService = mock(MatchFetchJobService.class);
         jobRepository = mock(MatchFetchJobRepository.class);
         playerRepository = mock(PlayerRepository.class);
-        botClient = mock(SteamBotClientService.class);
+        preliminaryReportService = mock(GsiPreliminaryReportService.class);
 
         service = new GsiEventService(jobService, jobRepository, playerRepository,
-                botClient, new ObjectMapper());
+                preliminaryReportService, new ObjectMapper());
 
         Player jogador = Player.builder()
                 .id(1L).steamId64(STEAM_ID).displayName("JGBR11")
@@ -114,12 +114,18 @@ class GsiEventServiceTest {
     }
 
     @Test
-    @DisplayName("Envia o relatório preliminar com as stats do próprio jogador")
-    void enviaRelatorioPreliminar() {
+    @DisplayName("Delega o relatório preliminar ao bean separado — é a travessia da borda do "
+            + "bean que faz o @Async do envio valer em produção")
+    void delegaRelatorioPreliminar() {
         service.processar(payload("live", "CT", 13, 9));
         service.processar(payload("gameover", "CT", 13, 9));
 
-        verify(botClient).sendSimpleNotification(eq(STEAM_ID), contains("de_mirage"));
+        // O que este teste prova é a delegação: processar chama OUTRO bean, e
+        // não a si mesmo. Só isso já é o que faltava — com a auto-invocação, o
+        // proxy do @Async nunca era acionado. O que ele NÃO prova é a
+        // assincronia real: aqui o colaborador é um mock, não há proxy AOP no
+        // meio. Essa parte fica com GsiAsyncBoundaryTest, que sobe o contexto.
+        verify(preliminaryReportService).enviar(eq(STEAM_ID), any(GsiPayloadDTO.class), eq(13), eq(9));
     }
 
     @Test
@@ -147,7 +153,7 @@ class GsiEventServiceTest {
         service.processar(payload("gameover", "CT", 13, 9));
 
         verify(jobService, never()).enqueueAwaitingShareCode(any(), any(), any(), any(), any());
-        verify(botClient, never()).sendSimpleNotification(any(), any());
+        verify(preliminaryReportService, never()).enviar(any(), any(), any(), any());
     }
 
     // ─── Fábrica de payload ───────────────────────────────────────────

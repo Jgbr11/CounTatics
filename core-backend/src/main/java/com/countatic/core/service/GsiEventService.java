@@ -8,7 +8,6 @@ import com.countatic.core.repository.MatchFetchJobRepository;
 import com.countatic.core.repository.PlayerRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -49,7 +48,7 @@ public class GsiEventService {
     private final MatchFetchJobService jobService;
     private final MatchFetchJobRepository jobRepository;
     private final PlayerRepository playerRepository;
-    private final SteamBotClientService botClient;
+    private final GsiPreliminaryReportService preliminaryReportService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -66,12 +65,12 @@ public class GsiEventService {
     public GsiEventService(MatchFetchJobService jobService,
                            MatchFetchJobRepository jobRepository,
                            PlayerRepository playerRepository,
-                           SteamBotClientService botClient,
+                           GsiPreliminaryReportService preliminaryReportService,
                            ObjectMapper objectMapper) {
         this.jobService = jobService;
         this.jobRepository = jobRepository;
         this.playerRepository = playerRepository;
-        this.botClient = botClient;
+        this.preliminaryReportService = preliminaryReportService;
         this.objectMapper = objectMapper;
     }
 
@@ -126,7 +125,11 @@ public class GsiEventService {
                 placarAdversario,
                 serializarStats(payload));
 
-        enviarPreliminar(steamId, payload, placarProprio, placarAdversario);
+        // Bean separado de propósito: a chamada precisa atravessar a borda do
+        // bean para o proxy do @Async valer. Ver GsiPreliminaryReportService —
+        // aqui dentro, o envio rodaria síncrono na thread do Tomcat e o read
+        // timeout de 90 s do bot estouraria o orçamento de 5 s do CS2.
+        preliminaryReportService.enviar(steamId, payload, placarProprio, placarAdversario);
 
         log.info("⚡ Job #{} criado pelo GSI para {} — sondando o share code na Valve.",
                 job.getId(), steamId);
@@ -165,61 +168,6 @@ public class GsiEventService {
             // não pode custar o gatilho, que é o que realmente importa.
             log.warn("Não foi possível serializar as stats do GSI: {}", e.getMessage());
             return null;
-        }
-    }
-
-    /**
-     * Relatório preliminar: o desempenho do jogador segundos após o fim.
-     *
-     * <p><b>O {@code @Async} aqui está inerte.</b> Este método é chamado por
-     * {@link #processar} na mesma instância, e o proxy do Spring só intercepta
-     * chamadas que entram pela borda do bean — auto-invocação passa direto. Na
-     * prática a chamada roda de forma síncrona, na thread da requisição HTTP.
-     * Quem hoje mantém isso dentro do orçamento de 5 s do GSI não é o
-     * {@code @Async}, e sim o fato de ser uma chamada HTTP local rápida ao
-     * bot, somado ao try/catch abaixo, que impede uma falha ou lentidão da
-     * Steam de propagar e travar o {@code processar}. Se este método crescer
-     * e passar a fazer algo mais pesado, ele precisa migrar para um bean
-     * próprio — só assim o {@code @Async} passa a valer.</p>
-     */
-    @Async
-    public void enviarPreliminar(String steamId, GsiPayloadDTO payload,
-                                 Integer placarProprio, Integer placarAdversario) {
-        GsiPayloadDTO.MatchStats s = payload.getPlayer() == null
-                ? null : payload.getPlayer().getMatchStats();
-        if (s == null) {
-            return;
-        }
-
-        String resultado;
-        if (placarProprio == null || placarAdversario == null) {
-            resultado = "";
-        } else if (placarProprio > placarAdversario) {
-            resultado = " ✅";
-        } else if (placarProprio < placarAdversario) {
-            resultado = " ❌";
-        } else {
-            resultado = " 🤝";
-        }
-
-        String mensagem = String.format("""
-                ⚡ CounTatic — fim de partida detectado
-
-                📍 %s · %s-%s%s
-                🔫 K/A/D: %s/%s/%s · ⭐ %s MVPs · 💀 Score %s
-
-                Estou buscando a demo para a análise completa.
-                Te mando o link em alguns minutos. 🚀""",
-                payload.getMap().getName(),
-                placarProprio, placarAdversario, resultado,
-                s.getKills(), s.getAssists(), s.getDeaths(), s.getMvps(), s.getScore());
-
-        try {
-            botClient.sendSimpleNotification(steamId, mensagem);
-        } catch (Exception e) {
-            // O relatório preliminar é um bônus. Perdê-lo não pode derrubar o
-            // gatilho: o job já está enfileirado e a análise completa segue.
-            log.warn("Falha ao enviar o relatório preliminar para {}: {}", steamId, e.getMessage());
         }
     }
 }

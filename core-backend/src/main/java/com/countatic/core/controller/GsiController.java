@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Recebe o Game State Integration do CS2.
@@ -27,8 +28,24 @@ import java.security.MessageDigest;
 @RestController
 public class GsiController {
 
+    /**
+     * A cada quantas rejeições um novo warn sai do silêncio.
+     *
+     * <p>Escolhi contador em vez de cooldown por tempo porque o volume aqui é
+     * conhecido e constante: o CS2 manda ~2 payloads por segundo, então 100
+     * rejeições ≈ 50 s. O contador dá a mesma cadência que um cooldown de
+     * ~1 min, sem depender de relógio, sem estado a resetar e sem corrida entre
+     * threads na leitura do instante — um {@code incrementAndGet} resolve. E
+     * ele carrega de graça o total acumulado, que é o dado que o operador quer
+     * ver ("está rejeitando desde sempre" vs. "começou agora").</p>
+     */
+    private static final long INTERVALO_LOG_REJEICAO = 100;
+
     private final GsiEventService gsiEventService;
     private final String tokenEsperado;
+
+    /** Rejeições por token divergente desde o start. Ver {@link #INTERVALO_LOG_REJEICAO}. */
+    private final AtomicLong rejeicoes = new AtomicLong();
 
     public GsiController(GsiEventService gsiEventService,
                          @Value("${countatic.gsi.token:}") String tokenEsperado) {
@@ -45,6 +62,7 @@ public class GsiController {
     @PostMapping("/api/gsi")
     public ResponseEntity<Void> receber(@RequestBody GsiPayloadDTO payload) {
         if (!tokenConfere(payload)) {
+            registrarRejeicao();
             return ResponseEntity.status(403).build();
         }
 
@@ -57,6 +75,29 @@ public class GsiController {
         }
 
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Deixa rastro da rejeição sem inundar o log e sem vazar o segredo.
+     *
+     * <p><b>Por que logar.</b> O modo de falha mais provável da instalação real
+     * é o token do {@code gamestate_integration_countatic.cfg} divergir do
+     * {@code GSI_TOKEN} do {@code .env}. O sintoma é um gatilho que nunca
+     * dispara — indistinguível, do lado de fora, de "o CS2 não está mandando
+     * nada". Sem uma linha de log, não há por onde começar o diagnóstico.</p>
+     *
+     * <p><b>Por que só o fato.</b> Nada do token entra na mensagem: nem valor,
+     * nem prefixo, nem sufixo, nem comprimento. Qualquer um desses transforma o
+     * log — que é lido, copiado e colado em issue — num vazamento do segredo, e
+     * o comprimento sozinho já estreita um ataque de força bruta.</p>
+     */
+    private void registrarRejeicao() {
+        long total = rejeicoes.incrementAndGet();
+        if (total == 1 || total % INTERVALO_LOG_REJEICAO == 0) {
+            log.warn("🔒 POST /api/gsi rejeitado por token divergente ({} rejeições até agora). "
+                    + "Verifique se o token do gamestate_integration_countatic.cfg é igual ao "
+                    + "GSI_TOKEN do .env.", total);
+        }
     }
 
     /**
