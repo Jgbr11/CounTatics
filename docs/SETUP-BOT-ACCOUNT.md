@@ -130,16 +130,23 @@ Diferente da Web API Key. Cada jogador gera o seu:
 
 `CS2 → Configurações → Game → Game Authentication Code`
 
-Formato: `XXXX-XXXXX-XXXX` (ex: `8TD6-UWWHY-F7MJ`)
+Formato: `XXXX-XXXXX-XXXX` (ex: `ABCD-EFGHI-JKLM`)
+
+> ⚠️ O Game Authentication Code **é segredo**. Junto com o seu SteamID64 — que
+> é público — ele dá a qualquer pessoa acesso ao seu histórico de partidas pela
+> API da Valve. Nunca commite o seu, nem em exemplo: o valor abaixo é
+> sintético. Se precisar trocar o seu, gere um novo em
+> `CS2 → Configurações → Game → Game Authentication Code`; o anterior deixa de
+> valer.
 
 Cadastro:
 
 ```powershell
 $body = @{
-  steamId64        = "76561199110265389"
-  authCode         = "8TD6-UWWHY-F7MJ"
+  steamId64        = "seu_steamid64"
+  authCode         = "ABCD-EFGHI-JKLM"
   initialShareCode = "CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx"
-  displayName      = "JGBR11"
+  displayName      = "SeuNick"
 } | ConvertTo-Json
 
 Invoke-RestMethod -Uri "http://localhost:8080/api/players/auth" -Method Post `
