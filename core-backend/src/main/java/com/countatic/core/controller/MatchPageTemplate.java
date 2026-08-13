@@ -47,10 +47,15 @@ final class MatchPageTemplate {
             .score{display:flex;align-items:center;gap:.9rem;margin-top:1rem}
             .score .side{text-align:center}
             .score .num{font-family:var(--f-display);font-weight:900;
-                        font-size:2.1rem;line-height:1;letter-spacing:.02em;
-                        text-shadow:0 0 16px rgba(176,38,255,.45)}
-            .score .who{font-size:.64rem;font-weight:600;letter-spacing:.16em;
-                        text-transform:uppercase;color:var(--muted);margin-top:.25rem}
+                        font-size:2.1rem;line-height:1;letter-spacing:.02em}
+            /* Cada lado brilha na própria cor: o glow herda currentColor em vez
+               de ser roxo fixo, senão o azul do CT ficaria com halo violeta. */
+            .score .ct .num{color:var(--ct);text-shadow:0 0 16px rgba(111,159,216,.5)}
+            .score .tr .num{color:var(--tr);text-shadow:0 0 16px rgba(233,180,76,.5)}
+            .score .who{font-size:.64rem;font-weight:700;letter-spacing:.16em;
+                        text-transform:uppercase;margin-top:.3rem}
+            .score .ct .who{color:var(--ct)}
+            .score .tr .who{color:var(--tr)}
             .score .sep{width:1px;height:34px;background:var(--line)}
 
             /* ─── TABELA DO PLACAR ────────────────────────────────────── */
@@ -78,8 +83,8 @@ final class MatchPageTemplate {
                border-collapse, uma border-left do tr não é renderizada. */
             tbody tr{--st:var(--neon-dim);cursor:pointer;
                      transition:background .15s}
-            tbody tr.is-up{--st:var(--cyan)}
-            tbody tr.is-down{--st:var(--magenta)}
+            tbody tr.is-up{--st:var(--good)}
+            tbody tr.is-down{--st:var(--bad)}
             tbody td:first-child{box-shadow:inset 2px 0 0 var(--st)}
             tbody tr:hover{background:rgba(176,38,255,.07)}
             tbody tr[aria-current="true"]{background:rgba(176,38,255,.13)}
@@ -242,19 +247,25 @@ final class MatchPageTemplate {
               let html = `<div class="cat"><h3>Comparado com a faixa</h3>` +
                          `<p class="hint" style="margin:-.35rem 0 .9rem">` +
                          `<span class="tier">${txt(b.faixaLabel)}</span> ` +
-                         `<span class="dim">· ${b.amostraTotal} desempenhos</span></p>`;
+                         `<span class="dim">· base de ${b.amostraTotal} desempenhos ` +
+                         `já analisados nesta faixa</span></p>`;
 
               for (const c of metricas) {
-                // Ciano no topo, magenta na base, roxo no meio: a cor carrega
-                // significado, não decoração.
+                // Verde no topo, vermelho na base, roxo no meio. O glifo ▲/▼
+                // vai junto da cor: verde e vermelho é o par que o daltonismo
+                // mais comum não separa, então a forma é quem garante a
+                // leitura. O "top X%" ao lado diz a mesma coisa em texto.
                 const p = Math.max(0, Math.min(100, c.percentil));
-                const cls = p >= 60 ? "is-up" : (p < 40 ? "is-down" : "");
-                const tone = p >= 60 ? "up" : (p < 40 ? "down" : "");
+                const alto = p >= 60, baixo = p < 40;
+                const cls  = alto ? "is-up" : (baixo ? "is-down" : "");
+                const tone = alto ? "up"    : (baixo ? "down"    : "");
+                const sig  = alto ? "▲"     : (baixo ? "▼"       : "—");
 
                 html += `<div class="cmp">
                     <div class="row">
                       <span class="lbl">${txt(c.rotulo)}</span>
-                      <span class="val"><b class="${tone}">${txt(c.valor)}</b>
+                      <span class="val"><b class="${tone}">` +
+                        `<span class="sig" aria-hidden="true">${sig}</span>${txt(c.valor)}</b>
                         <span class="dim"> · média ${txt(c.media)} · top ${(100 - p).toFixed(0)}%</span>
                       </span>
                     </div>
@@ -268,15 +279,15 @@ final class MatchPageTemplate {
             function renderHeader() {
               el("title").textContent = DATA.mapName || "Partida";
 
-              // Placar por lado, rotulado. "maior-menor" não diz de quem é o
-              // placar — e o DTO não informa de que lado o dono da partida jogou,
-              // então rotular CT e TR é o único jeito honesto de mostrar.
+              // Placar por lado, com as cores dos times no CS2: CT azul, TR
+              // amarelo. "maior-menor" não diria de quem é o número, e o DTO
+              // não informa de que lado o dono da partida jogou.
               const ct = DATA.scoreCT, tr = DATA.scoreTR;
               if (ct != null && tr != null) {
                 el("score").innerHTML =
-                  `<div class="side"><div class="num">${ct}</div><div class="who">CT</div></div>` +
+                  `<div class="side ct"><div class="num">${ct}</div><div class="who">CT</div></div>` +
                   `<div class="sep"></div>` +
-                  `<div class="side"><div class="num">${tr}</div><div class="who">TR</div></div>`;
+                  `<div class="side tr"><div class="num">${tr}</div><div class="who">TR</div></div>`;
               }
 
               const tag = (label, value) =>
@@ -296,10 +307,20 @@ final class MatchPageTemplate {
               // O badge só existe quando há CS Rating: um anel pulsante em volta
               // de "—" chamaria atenção para a ausência do dado.
               if (DATA.csRating != null) {
+                // A cor e o nome vêm da faixa do Premier. O nome legível sai do
+                // próprio enum ("AZUL_CLARO" -> "Azul claro"), o que evita
+                // fatiar o rankTierLabel — que existe para exibir a faixa
+                // numérica e pode mudar de formato sem aviso.
+                const tier = DATA.rankTier || "";
+                const cls  = tier ? " t-" + tier.toLowerCase().replace(/_/g, "-") : "";
+                const nome = tier
+                  ? tier.charAt(0) + tier.slice(1).toLowerCase().replace(/_/g, " ")
+                  : "Rating";
+
                 el("rank").innerHTML =
-                  `<div class="badge" title="CS Rating de quem cadastrou a partida">` +
+                  `<div class="badge${cls}" title="CS Rating de quem cadastrou a partida">` +
                   `<div><div class="n">${txt(DATA.csRating)}</div>` +
-                  `<div class="t">Rating</div></div></div>`;
+                  `<div class="t">${txt(nome)}</div></div></div>`;
               }
             }
 
@@ -311,16 +332,19 @@ final class MatchPageTemplate {
                 const kd = p.deaths > 0 ? (p.kills / p.deaths) : p.kills;
                 const tr = document.createElement("tr");
 
-                // A barra lateral marca o status da linha: K/D a partir de 1.0
-                // é positivo. É o único corte com significado disponível aqui —
-                // o DTO não diz quem venceu a partida.
-                tr.className = kd >= 1 ? "is-up" : "is-down";
+                // A barra lateral e o K/D marcam o status da linha: a partir de
+                // 1.0 é positivo. É o único corte com significado disponível
+                // aqui — o DTO não diz quem venceu a partida.
+                const positivo = kd >= 1;
+                tr.className = positivo ? "is-up" : "is-down";
                 tr.tabIndex = 0;
                 tr.innerHTML =
                   `<td>${txt(p.playerName || p.steamId64)}</td>` +
                   `<td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td>` +
                   `<td>${p.headshots}</td>` +
-                  `<td class="${kd >= 1 ? "up" : "down"}">${kd.toFixed(2)}</td>` +
+                  `<td class="${positivo ? "up" : "down"}">` +
+                    `<span class="sig" aria-hidden="true">${positivo ? "▲" : "▼"}</span>` +
+                    `${kd.toFixed(2)}</td>` +
                   `<td>${p.damage}</td>`;
 
                 tr.addEventListener("click", () => select(i));

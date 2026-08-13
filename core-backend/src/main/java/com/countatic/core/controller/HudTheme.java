@@ -75,8 +75,28 @@ final class HudTheme {
 
               --neon:#B026FF;
               --neon-dim:#6B2FA0;
-              --magenta:#FF2E9A;
-              --cyan:#00F0FF;
+
+              /* Times: as cores do próprio CS2. Um placar de CS em que o CT não
+                 é azul e o TR não é amarelo obriga o jogador a ler o rótulo
+                 para saber de quem é o número — a cor tem que dizer isso
+                 sozinha, como diz dentro do jogo. */
+              --ct:#6F9FD8;
+              --tr:#E9B44C;
+
+              /* Estados: verde positivo, vermelho negativo.
+                 Verde e vermelho é o par MENOS distinguível para daltonismo
+                 do tipo protan/deutan, que é o mais comum. Por isso nenhum
+                 indicador desta interface depende só da cor: todo lugar que
+                 usa --good/--bad carrega junto um sinal de forma (▲ ▼) e o
+                 número continua legível por si. A cor acelera a leitura de
+                 quem enxerga a diferença; ela nunca é a única portadora. */
+              --good:#2BE08A;
+              --bad:#FF4D6A;
+
+              /* Ciano fica reservado ao anel de foco — afordância de
+                 interface, não estado. Misturá-lo com os estados faria "está
+                 focado" parecer "está bom". */
+              --focus:#00F0FF;
 
               --text:#E8E3F5;
               --muted:#8B7FA8;
@@ -219,30 +239,50 @@ final class HudTheme {
                BADGE DE RANK
                Circular, anel neon, pulsação lenta. É a única forma redonda
                da interface — por isso chama atenção sem precisar de tamanho.
+
+               A cor NÃO é a da marca: é a da faixa do Premier. Um jogador
+               Azul que visse um anel roxo teria de ler o número para saber
+               onde está, e o badge existe justamente para dispensar isso.
+               As sete faixas abaixo são as mesmas do enum RankTier.
+               O rgba de cada uma vem escrito à mão em vez de derivado por
+               color-mix, para não depender de suporte do navegador num
+               elemento que é a identidade da tela.
                ─────────────────────────────────────────────────────────── */
             .badge{
+              --tier:var(--neon);
+              --tier-glow:rgba(176,38,255,.55);
+              --tier-soft:rgba(176,38,255,.18);
+
               display:grid;
               place-items:center;
-              width:78px;height:78px;
+              width:96px;height:96px;
               flex:0 0 auto;
               border-radius:50%;
               background:radial-gradient(circle at 50% 45%,
-                         rgba(176,38,255,.20), rgba(176,38,255,.03) 70%);
-              border:1px solid var(--neon);
+                         var(--tier-soft), transparent 72%);
+              border:2px solid var(--tier);
               animation:hud-pulse 2.6s ease-in-out infinite;
               text-align:center;
             }
-            .badge .n{font-family:var(--f-display);font-weight:900;font-size:1.1rem;
-                      letter-spacing:.02em;line-height:1;
-                      text-shadow:0 0 12px rgba(176,38,255,.7)}
-            .badge .t{font-size:.6rem;font-weight:600;letter-spacing:.12em;
-                      text-transform:uppercase;color:var(--muted);margin-top:.2rem}
+            .badge .n{font-family:var(--f-display);font-weight:900;font-size:1.5rem;
+                      letter-spacing:.01em;line-height:1;color:var(--tier);
+                      text-shadow:0 0 14px var(--tier-glow)}
+            .badge .t{font-family:var(--f-body);font-size:.62rem;font-weight:700;
+                      letter-spacing:.14em;text-transform:uppercase;
+                      color:var(--tier);margin-top:.3rem;opacity:.9}
 
+            .badge.t-cinza      {--tier:#B6BECC;--tier-glow:rgba(182,190,204,.55);--tier-soft:rgba(182,190,204,.18)}
+            .badge.t-azul-claro {--tier:#6FD3F2;--tier-glow:rgba(111,211,242,.55);--tier-soft:rgba(111,211,242,.18)}
+            .badge.t-azul       {--tier:#5B8DEF;--tier-glow:rgba(91,141,239,.60); --tier-soft:rgba(91,141,239,.20)}
+            .badge.t-roxo       {--tier:#B026FF;--tier-glow:rgba(176,38,255,.55); --tier-soft:rgba(176,38,255,.18)}
+            .badge.t-rosa       {--tier:#FF57C1;--tier-glow:rgba(255,87,193,.55); --tier-soft:rgba(255,87,193,.18)}
+            .badge.t-vermelho   {--tier:#FF4D4D;--tier-glow:rgba(255,77,77,.55);  --tier-soft:rgba(255,77,77,.18)}
+            .badge.t-ouro       {--tier:#FFC53D;--tier-glow:rgba(255,197,61,.60); --tier-soft:rgba(255,197,61,.20)}
+
+            /* O pulso usa a cor da faixa, não a da marca. */
             @keyframes hud-pulse{
-              0%,100%{box-shadow:0 0 10px rgba(176,38,255,.30),
-                                 inset 0 0 10px rgba(176,38,255,.12)}
-              50%    {box-shadow:0 0 20px rgba(176,38,255,.55),
-                                 inset 0 0 14px rgba(176,38,255,.20)}
+              0%,100%{box-shadow:0 0 10px var(--tier-soft), inset 0 0 10px var(--tier-soft)}
+              50%    {box-shadow:0 0 24px var(--tier-glow), inset 0 0 14px var(--tier-soft)}
             }
 
             /* ───────────────────────────────────────────────────────────
@@ -256,10 +296,10 @@ final class HudTheme {
             .bar > i{position:absolute;inset:0 auto 0 0;display:block;
                      background:linear-gradient(90deg,var(--neon-dim),var(--neon));
                      box-shadow:0 0 10px rgba(176,38,255,.5)}
-            .bar > i.is-up{background:linear-gradient(90deg,#0b7f88,var(--cyan));
-                           box-shadow:0 0 10px rgba(0,240,255,.45)}
-            .bar > i.is-down{background:linear-gradient(90deg,#8f1a57,var(--magenta));
-                             box-shadow:0 0 10px rgba(255,46,154,.45)}
+            .bar > i.is-up{background:linear-gradient(90deg,#147852,var(--good));
+                           box-shadow:0 0 10px rgba(43,224,138,.45)}
+            .bar > i.is-down{background:linear-gradient(90deg,#8f2036,var(--bad));
+                             box-shadow:0 0 10px rgba(255,77,106,.45)}
 
             /* ───────────────────────────────────────────────────────────
                ITEM DE LISTA
@@ -275,8 +315,8 @@ final class HudTheme {
               margin-bottom:.5rem;
               font-size:.95rem;
             }
-            .items li.is-up{border-left-color:var(--cyan)}
-            .items li.is-down{border-left-color:var(--magenta)}
+            .items li.is-up{border-left-color:var(--good)}
+            .items li.is-down{border-left-color:var(--bad)}
 
             .note{background:var(--tint);border:1px solid var(--line);
                   border-left:2px solid var(--neon-dim);
@@ -308,13 +348,24 @@ final class HudTheme {
             /* ───────────────────────────────────────────────────────────
                ESTADOS SEMÂNTICOS DE TEXTO
                ─────────────────────────────────────────────────────────── */
-            .up{color:var(--cyan)}
-            .down{color:var(--magenta)}
+            .up{color:var(--good)}
+            .down{color:var(--bad)}
             .dim{color:var(--muted)}
+            .ct{color:var(--ct)}
+            .tr{color:var(--tr)}
+
+            /* Sinal de forma que acompanha toda cor de estado.
+               É o que faz o indicador continuar legível para quem não
+               distingue verde de vermelho — e, de quebra, para quem está no
+               sol ou num monitor mal calibrado. Fica aria-hidden porque o
+               significado já está no número ao lado; para o leitor de tela o
+               glifo seria ruído. */
+            .sig{font-family:var(--f-body);font-weight:700;font-size:.78em;
+                 margin-right:.28em;letter-spacing:0}
 
             /* Foco sempre visível: a página é operável por teclado e o anel
                padrão do navegador some contra um fundo quase preto. */
-            :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+            :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
             /* ───────────────────────────────────────────────────────────
                MOVIMENTO REDUZIDO
