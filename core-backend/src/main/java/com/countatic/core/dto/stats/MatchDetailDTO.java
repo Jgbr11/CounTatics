@@ -62,8 +62,14 @@ public class MatchDetailDTO {
         /** Métricas por categoria: {@code {"Aim": {"kdRatio": 1.2, ...}, ...}}. */
         private Map<String, Map<String, Double>> metrics;
 
-        /** Dicas de melhoria por categoria. */
-        private Map<String, Map<String, String>> insights;
+        /**
+         * Dicas de melhoria por categoria: {@code {"Aim": {"kdRatio": Insight, ...}, ...}}.
+         *
+         * <p>Cada {@link Insight} carrega o texto e a gravidade, para a página
+         * poder ordenar por urgência e escolher o ícone sem tentar adivinhar
+         * pelo texto.</p>
+         */
+        private Map<String, Map<String, Insight>> insights;
 
         /**
          * Comparação com jogadores da mesma faixa.

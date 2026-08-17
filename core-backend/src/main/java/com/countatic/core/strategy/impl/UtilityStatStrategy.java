@@ -1,5 +1,6 @@
 package com.countatic.core.strategy.impl;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.strategy.StatCalculationStrategy;
@@ -60,7 +61,7 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
                 player.getSteamId64(), match.getId());
 
         Map<String, Double> metrics = new LinkedHashMap<>();
-        Map<String, String> insights = new LinkedHashMap<>();
+        Map<String, Insight> insights = new LinkedHashMap<>();
 
         List<MatchEvent> allEvents = flattenEvents(match);
         Long playerId = player.getId();
@@ -147,7 +148,7 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
     private void calculateFlashMetrics(List<MatchEvent> allEvents, Long playerId,
                                        int totalRounds,
                                        Map<String, Double> metrics,
-                                       Map<String, String> insights) {
+                                       Map<String, Insight> insights) {
 
         List<MatchEvent> flashesThrown = filterByActorAndType(allEvents, playerId, EventType.FLASH_THROWN);
         List<MatchEvent> flashBlinds = filterByActorAndType(allEvents, playerId, EventType.FLASH_BLINDED);
@@ -199,9 +200,13 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
         if (totalBlinds > 0) {
             double teamFlashRate = (teamBlinds * 100.0) / totalBlinds;
             metrics.put("teamFlashRate", round2(teamFlashRate));
+            // Este insight só nasce quando é problema — daí ser sempre AVISO.
+            // O símbolo saiu do texto: quem escolhe o ícone é a exibição, a
+            // partir da gravidade. Embutido aqui, ele duplicaria o ícone da
+            // página e apareceria deslocado na mensagem da Steam.
             if (teamFlashRate > 30.0) {
-                insights.put("teamFlashRate",
-                        String.format("⚠️ %.1f%% das suas flashes cegaram aliados! Cuidado com os line-ups.", teamFlashRate));
+                insights.put("teamFlashRate", Insight.aviso(String.format(
+                        "%.1f%% das suas flashes cegaram aliados! Cuidado com os line-ups.", teamFlashRate)));
             }
         }
 
@@ -234,7 +239,7 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
     private void calculateUtilityDamage(List<MatchEvent> allEvents, Long playerId,
                                          int totalRounds,
                                          Map<String, Double> metrics,
-                                         Map<String, String> insights) {
+                                         Map<String, Insight> insights) {
 
         List<MatchEvent> utilityDamageEvents = allEvents.stream()
                 .filter(e -> e.getEventType() == EventType.DAMAGE)
@@ -264,7 +269,7 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
     private void calculateSmokeUsage(List<MatchEvent> allEvents, Long playerId,
                                       int totalRounds,
                                       Map<String, Double> metrics,
-                                      Map<String, String> insights) {
+                                      Map<String, Insight> insights) {
 
         long smokesThrown = filterByActorAndType(allEvents, playerId, EventType.SMOKE_THROWN).size();
 
@@ -277,34 +282,35 @@ public class UtilityStatStrategy implements StatCalculationStrategy {
             double smokesPerRound = (double) smokesThrown / totalRounds;
             metrics.put("smokesPerRound", round2(smokesPerRound));
 
+            // Como o de team flash, só existe quando é problema.
             if (smokesPerRound < 0.3) {
-                insights.put("smokeUsage",
-                        String.format("Você lançou apenas %.1f smokes por round. Use mais smokes para controlar o mapa!", smokesPerRound));
+                insights.put("smokeUsage", Insight.aviso(String.format(
+                        "Você lançou apenas %.1f smokes por round. Use mais smokes para controlar o mapa!", smokesPerRound)));
             }
         }
     }
 
     // ─── Geração de Insights ──────────────────────────────────────────
 
-    private String generateFlashEfficiencyInsight(double efficiency) {
+    private Insight generateFlashEfficiencyInsight(double efficiency) {
         if (efficiency >= 70.0) {
-            return String.format("Flash efficiency excelente (%.1f%%)! Suas flashes estão cegando inimigos consistentemente.", efficiency);
+            return Insight.sucesso(String.format("Flash efficiency excelente (%.1f%%)! Suas flashes estão cegando inimigos consistentemente.", efficiency));
         } else if (efficiency >= 45.0) {
-            return String.format("Flash efficiency boa (%.1f%%). Tente aprender mais line-ups para pop-flashes efetivas.", efficiency);
+            return Insight.sucesso(String.format("Flash efficiency boa (%.1f%%). Tente aprender mais line-ups para pop-flashes efetivas.", efficiency));
         } else if (efficiency >= 20.0) {
-            return String.format("Flash efficiency mediana (%.1f%%). Muitas das suas flashes não cegam ninguém. Pratique line-ups específicos.", efficiency);
+            return Insight.info(String.format("Flash efficiency mediana (%.1f%%). Muitas das suas flashes não cegam ninguém. Pratique line-ups específicos.", efficiency));
         } else {
-            return String.format("Flash efficiency baixa (%.1f%%). A maioria das suas flashes está sendo desperdiçada. Estude pop-flashes e posições comuns.", efficiency);
+            return Insight.aviso(String.format("Flash efficiency baixa (%.1f%%). A maioria das suas flashes está sendo desperdiçada. Estude pop-flashes e posições comuns.", efficiency));
         }
     }
 
-    private String generateUtilityDamageInsight(double dmgPerRound) {
+    private Insight generateUtilityDamageInsight(double dmgPerRound) {
         if (dmgPerRound >= 15.0) {
-            return String.format("Excelente uso de HE e Molotov (%.1f dmg/round). Você está usando utilitárias de forma impactante.", dmgPerRound);
+            return Insight.sucesso(String.format("Excelente uso de HE e Molotov (%.1f dmg/round). Você está usando utilitárias de forma impactante.", dmgPerRound));
         } else if (dmgPerRound >= 7.0) {
-            return String.format("Bom dano de utilitárias (%.1f dmg/round). Tente combinar HE com Molotov em posições comuns.", dmgPerRound);
+            return Insight.info(String.format("Bom dano de utilitárias (%.1f dmg/round). Tente combinar HE com Molotov em posições comuns.", dmgPerRound));
         } else {
-            return String.format("Dano de utilitárias baixo (%.1f dmg/round). Jogue mais HE e Molotovs em posições previsíveis de inimigos.", dmgPerRound);
+            return Insight.aviso(String.format("Dano de utilitárias baixo (%.1f dmg/round). Jogue mais HE e Molotovs em posições previsíveis de inimigos.", dmgPerRound));
         }
     }
 

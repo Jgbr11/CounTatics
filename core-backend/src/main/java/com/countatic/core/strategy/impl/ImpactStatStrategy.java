@@ -1,5 +1,6 @@
 package com.countatic.core.strategy.impl;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.strategy.StatCalculationStrategy;
@@ -50,7 +51,7 @@ public class ImpactStatStrategy implements StatCalculationStrategy {
     @Override
     public PlayerStatResult calculate(Match match, Player player) {
         Map<String, Double> metrics = new LinkedHashMap<>();
-        Map<String, String> insights = new LinkedHashMap<>();
+        Map<String, Insight> insights = new LinkedHashMap<>();
 
         Long playerId = player.getId();
         int totalRounds = match.getTotalRounds() == null ? 0 : match.getTotalRounds();
@@ -120,7 +121,10 @@ public class ImpactStatStrategy implements StatCalculationStrategy {
         metrics.put("tradeKills", (double) tradeKills);
         metrics.put("tradedDeaths", (double) tradedDeaths);
         if (tradeKills + tradedDeaths > 0) {
-            insights.put("trades", insightTrades(tradeKills, tradedDeaths, totalRounds));
+            Insight trades = insightTrades(tradeKills, tradedDeaths, totalRounds);
+            if (trades != null) {
+                insights.put("trades", trades);
+            }
         }
 
         // ─── Opening duels ───────────────────────────────────────────────
@@ -301,53 +305,67 @@ public class ImpactStatStrategy implements StatCalculationStrategy {
     //  INSIGHTS
     // ═══════════════════════════════════════════════════════════════════
 
-    private String insightAdr(double adr) {
+    private Insight insightAdr(double adr) {
         if (adr >= 90) {
-            return String.format("ADR excelente (%.0f). Você está causando dano consistente todo round.", adr);
+            return Insight.sucesso(String.format(
+                    "ADR excelente (%.0f). Você está causando dano consistente todo round.", adr));
         }
         if (adr >= 70) {
-            return String.format("ADR bom (%.0f). Acima da média — continue buscando os primeiros contatos.", adr);
+            return Insight.sucesso(String.format(
+                    "ADR bom (%.0f). Acima da média — continue buscando os primeiros contatos.", adr));
         }
         if (adr >= 50) {
-            return String.format("ADR mediano (%.0f). Tente abrir mais duelos e usar HE em posições prováveis.", adr);
+            return Insight.info(String.format(
+                    "ADR mediano (%.0f). Tente abrir mais duelos e usar HE em posições prováveis.", adr));
         }
-        return String.format("ADR baixo (%.0f). Mesmo sem finalizar, causar dano ajuda o time — "
-                + "priorize trocar tiro em vez de esperar o round decidir sozinho.", adr);
+        return Insight.aviso(String.format("ADR baixo (%.0f). Mesmo sem finalizar, causar dano ajuda o time — "
+                + "priorize trocar tiro em vez de esperar o round decidir sozinho.", adr));
     }
 
-    private String insightTrades(int tradeKills, int tradedDeaths, int rounds) {
-        if (rounds <= 0) return "";
+    /**
+     * Devolve {@code null} quando não há o que dizer.
+     *
+     * <p>Antes esta condição devolvia string vazia, e o chamador publicava o
+     * insight assim mesmo — a página renderizava um item de lista em branco.
+     * Devolver {@code null} e não publicar deixa a ausência explícita.</p>
+     */
+    private Insight insightTrades(int tradeKills, int tradedDeaths, int rounds) {
+        if (rounds <= 0) return null;
 
         if (tradeKills >= tradedDeaths && tradeKills > 0) {
-            return String.format("Você vingou %d morte(s) de aliado e teve %d das suas vingadas. "
-                    + "Bom jogo de cobertura.", tradeKills, tradedDeaths);
+            return Insight.sucesso(String.format("Você vingou %d morte(s) de aliado e teve %d das suas vingadas. "
+                    + "Bom jogo de cobertura.", tradeKills, tradedDeaths));
         }
-        return String.format("Você vingou %d morte(s) de aliado, mas %d das suas foram vingadas. "
-                + "Ficar mais perto do time aumenta a chance de trocar as mortes.", tradeKills, tradedDeaths);
+        return Insight.aviso(String.format("Você vingou %d morte(s) de aliado, mas %d das suas foram vingadas. "
+                + "Ficar mais perto do time aumenta a chance de trocar as mortes.", tradeKills, tradedDeaths));
     }
 
-    private String insightOpening(double taxa, int duelos, int rounds) {
+    private Insight insightOpening(double taxa, int duelos, int rounds) {
+        // Participar de poucos primeiros duelos é característica de função, não
+        // erro — o próprio texto diz isso. Por isso INFO e não AVISO.
         if (rounds > 0 && duelos * 100.0 / rounds < 20) {
-            return String.format("Você participou do primeiro duelo em poucos rounds (%d de %d). "
-                    + "Não é erro — mas quem abre o round costuma decidi-lo.", duelos, rounds);
+            return Insight.info(String.format("Você participou do primeiro duelo em poucos rounds (%d de %d). "
+                    + "Não é erro — mas quem abre o round costuma decidi-lo.", duelos, rounds));
         }
         if (taxa >= 60) {
-            return String.format("Você vence %.0f%% dos primeiros duelos. Isso abre rounds para o time.", taxa);
+            return Insight.sucesso(String.format(
+                    "Você vence %.0f%% dos primeiros duelos. Isso abre rounds para o time.", taxa));
         }
         if (taxa >= 45) {
-            return String.format("Você vence %.0f%% dos primeiros duelos — equilibrado.", taxa);
+            return Insight.info(String.format(
+                    "Você vence %.0f%% dos primeiros duelos — equilibrado.", taxa));
         }
-        return String.format("Você perde a maioria dos primeiros duelos (%.0f%% de vitória). "
-                + "Tente entrar com utilitária ou com um aliado pronto para trocar.", taxa);
+        return Insight.aviso(String.format("Você perde a maioria dos primeiros duelos (%.0f%% de vitória). "
+                + "Tente entrar com utilitária ou com um aliado pronto para trocar.", taxa));
     }
 
-    private String insightClutch(int vencidos, int tentados) {
+    private Insight insightClutch(int vencidos, int tentados) {
         if (vencidos == 0) {
-            return String.format("Você ficou sozinho em %d round(s) e não converteu. "
-                    + "Nessas horas, jogar pelo tempo e isolar duelos costuma render mais.", tentados);
+            return Insight.aviso(String.format("Você ficou sozinho em %d round(s) e não converteu. "
+                    + "Nessas horas, jogar pelo tempo e isolar duelos costuma render mais.", tentados));
         }
-        return String.format("Você venceu %d de %d situação(ões) sozinho contra o time adversário.",
-                vencidos, tentados);
+        return Insight.sucesso(String.format(
+                "Você venceu %d de %d situação(ões) sozinho contra o time adversário.", vencidos, tentados));
     }
 
     // ═══════════════════════════════════════════════════════════════════

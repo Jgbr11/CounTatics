@@ -323,6 +323,37 @@ final class HudTheme {
                   padding:.7rem .85rem;font-size:.92rem;color:var(--muted)}
 
             /* ───────────────────────────────────────────────────────────
+               COACH PANEL
+               Feedback consolidado, ordenado por gravidade. A cor da barra
+               lateral e a do ícone vêm da mesma variável --sev, então trocar
+               a gravidade de um item não exige mexer em dois lugares.
+               ─────────────────────────────────────────────────────────── */
+            .coach{list-style:none;padding:0;margin:0}
+            .coach-item{
+              --sev:var(--muted);
+              display:flex;
+              align-items:flex-start;
+              gap:.7rem;
+              padding:.75rem .9rem;
+              margin-bottom:.5rem;
+              background:rgba(255,255,255,.02);
+              border:1px solid var(--line);
+              border-left:2px solid var(--sev);
+            }
+            .coach-item.is-aviso  {--sev:var(--bad)}
+            .coach-item.is-sucesso{--sev:var(--good)}
+            .coach-item.is-info   {--sev:var(--neon-dim)}
+
+            /* O ícone é o único elemento colorido pela gravidade. O texto fica
+               em --text: dica é bloco de leitura, e neon em texto longo cansa. */
+            .coach-item .ico{color:var(--sev);flex:0 0 auto;margin-top:.15rem}
+            .coach-txt{min-width:0}
+            .coach-txt p{margin:0;font-size:.95rem;line-height:1.5}
+            .coach-meta{display:block;margin-top:.3rem;
+                        font-size:.68rem;font-weight:600;letter-spacing:.12em;
+                        text-transform:uppercase;color:var(--muted)}
+
+            /* ───────────────────────────────────────────────────────────
                BOTÃO
                Fundo escuro, borda neon, glow só no hover/foco — o estado de
                repouso não compete com os dados.

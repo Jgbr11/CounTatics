@@ -1,5 +1,6 @@
 package com.countatic.core.strategy;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.strategy.impl.UtilityStatStrategy;
@@ -80,7 +81,9 @@ class UtilityStatStrategyTest {
         assertThat(result.getMetrics().get("flashEfficiency")).isEqualTo(50.0); // 1 de 2 flashes cegou inimigo
         assertThat(result.getMetrics().get("teamFlashRate")).isEqualTo(50.0); // 1 team blind / 2 total blinds
         assertThat(result.getMetrics().get("avgEnemyFlashDuration")).isEqualTo(3.0);
-        assertThat(result.getInsights().get("teamFlashRate")).contains("cegaram aliados");
+        assertThat(result.getInsights().get("teamFlashRate").texto()).contains("cegaram aliados");
+        assertThat(result.getInsights().get("teamFlashRate").gravidade())
+                .isEqualTo(Insight.Severidade.AVISO);
     }
 
     @Test

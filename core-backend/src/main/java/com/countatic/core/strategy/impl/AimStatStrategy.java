@@ -1,5 +1,6 @@
 package com.countatic.core.strategy.impl;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.strategy.StatCalculationStrategy;
@@ -53,7 +54,7 @@ public class AimStatStrategy implements StatCalculationStrategy {
                 player.getSteamId64(), match.getId());
 
         Map<String, Double> metrics = new LinkedHashMap<>();
-        Map<String, String> insights = new LinkedHashMap<>();
+        Map<String, Insight> insights = new LinkedHashMap<>();
 
         List<MatchEvent> allEvents = flattenEvents(match);
         Long playerId = player.getId();
@@ -244,48 +245,58 @@ public class AimStatStrategy implements StatCalculationStrategy {
 
     // ─── Geração de Insights ──────────────────────────────────────────
 
-    private String generateHsInsight(double hsPercentage) {
+    private Insight generateHsInsight(double hsPercentage) {
         if (hsPercentage >= 60.0) {
-            return String.format("Excelente HS%% (%.1f%%)! Sua mira na cabeça está em nível profissional.", hsPercentage);
+            return Insight.sucesso(String.format(
+                    "Excelente HS%% (%.1f%%)! Sua mira na cabeça está em nível profissional.", hsPercentage));
         } else if (hsPercentage >= 45.0) {
-            return String.format("Bom HS%% (%.1f%%). Acima da média. Continue treinando aim maps para melhorar ainda mais.", hsPercentage);
+            return Insight.sucesso(String.format(
+                    "Bom HS%% (%.1f%%). Acima da média. Continue treinando aim maps para melhorar ainda mais.", hsPercentage));
         } else if (hsPercentage >= 30.0) {
-            return String.format("HS%% na média (%.1f%%). Tente focar mais na altura da cabeça ao mirar.", hsPercentage);
+            return Insight.info(String.format(
+                    "HS%% na média (%.1f%%). Tente focar mais na altura da cabeça ao mirar.", hsPercentage));
         } else {
-            return String.format("HS%% abaixo da média (%.1f%%). Pratique mira em aim_botz e deathmatch focando em headshots.", hsPercentage);
+            return Insight.aviso(String.format(
+                    "HS%% abaixo da média (%.1f%%). Pratique mira em aim_botz e deathmatch focando em headshots.", hsPercentage));
         }
     }
 
-    private String generateKdInsight(double kdRatio) {
+    private Insight generateKdInsight(double kdRatio) {
         if (kdRatio >= 1.5) {
-            return String.format("K/D excelente (%.2f). Você está dominando os duelos!", kdRatio);
+            return Insight.sucesso(String.format(
+                    "K/D excelente (%.2f). Você está dominando os duelos!", kdRatio));
         } else if (kdRatio >= 1.0) {
-            return String.format("K/D positivo (%.2f). Sólido — continue mantendo essa consistência.", kdRatio);
+            return Insight.sucesso(String.format(
+                    "K/D positivo (%.2f). Sólido — continue mantendo essa consistência.", kdRatio));
         } else if (kdRatio >= 0.8) {
-            return String.format("K/D levemente negativo (%.2f). Foque em posicionamento para pegar vantagem nos duelos.", kdRatio);
+            // "Levemente negativo" é constatação, não alarme: a diferença para
+            // 1.0 cabe na variação de uma partida só.
+            return Insight.info(String.format(
+                    "K/D levemente negativo (%.2f). Foque em posicionamento para pegar vantagem nos duelos.", kdRatio));
         } else {
-            return String.format("K/D baixo (%.2f). Revise seu posicionamento e escolha de duelos.", kdRatio);
+            return Insight.aviso(String.format(
+                    "K/D baixo (%.2f). Revise seu posicionamento e escolha de duelos.", kdRatio));
         }
     }
 
-    private String generateCrosshairInsight(double score, double erroMediano) {
+    private Insight generateCrosshairInsight(double score, double erroMediano) {
         if (score >= 60.0) {
-            return String.format(
+            return Insight.sucesso(String.format(
                     "Crosshair placement excelente: em %.0f%% dos disparos a mira estava a menos de %.0f° "
                             + "da cabeça (erro mediano de %.1f°).",
-                    score, LIMIAR_BOA_MIRA_GRAUS, erroMediano);
+                    score, LIMIAR_BOA_MIRA_GRAUS, erroMediano));
         }
         if (score >= 35.0) {
-            return String.format(
+            return Insight.info(String.format(
                     "Crosshair placement razoável: %.0f%% dos disparos com a mira já perto da cabeça "
                             + "(erro mediano de %.1f°). Pré-mirar os ângulos antes de cruzá-los reduz esse erro.",
-                    score, erroMediano);
+                    score, erroMediano));
         }
-        return String.format(
+        return Insight.aviso(String.format(
                 "Crosshair placement a melhorar: erro mediano de %.1f° até a cabeça do inimigo. "
                         + "Ande com a mira na altura da cabeça e pré-mirando os cantos — assim o duelo "
                         + "vira um micro-ajuste em vez de um giro.",
-                erroMediano);
+                erroMediano));
     }
 
     // ─── Utilitários ──────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 package com.countatic.core.strategy;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.strategy.impl.ImpactStatStrategy;

@@ -167,10 +167,19 @@ final class MatchPageTemplate {
                 </div>
               </section>
 
+              <section class="panel cut">
+                <div class="cut-in">
+                  <div class="panel-head"><h2 id="coachTitle">O que treinar</h2></div>
+                  <div id="coach" aria-live="polite"></div>
+                </div>
+              </section>
+
             </div>
             <footer>Análise gerada a partir da demo oficial da partida</footer>
 
             <script>
+            __COMPONENTS_JS__
+
             const DATA = __MATCH_DATA__;
 
             // Rótulos legíveis para as chaves cruas emitidas pelas strategies.
@@ -383,18 +392,18 @@ final class MatchPageTemplate {
                   const [label, val] = fmt(k, v);
                   html += chip(label, val);
                 }
-                html += `</div>`;
-
-                const tips = (p.insights || {})[cat];
-                if (tips && Object.keys(tips).length) {
-                  html += `<ul class="items" style="margin-top:.7rem">`;
-                  for (const t of Object.values(tips)) html += `<li>${txt(t)}</li>`;
-                  html += `</ul>`;
-                }
-                html += `</div>`;
+                html += `</div></div>`;
               }
 
               el("detail").innerHTML = html;
+
+              // As dicas saíram de baixo de cada categoria e passaram a um
+              // painel próprio, ordenado por gravidade. Espalhadas, um elogio e
+              // um alerta tinham o mesmo peso e o jogador precisava ler tudo
+              // para achar o que fazer.
+              el("coachTitle").textContent =
+                "O que treinar — " + (p.playerName || p.steamId64);
+              el("coach").innerHTML = CoachPanel(achatarInsights(p.insights));
             }
 
             renderHeader();
@@ -407,5 +416,6 @@ final class MatchPageTemplate {
             .replace("__META__", HudTheme.META)
             .replace("__FONTS__", HudTheme.FONTS)
             .replace("__THEME_CSS__", HudTheme.CSS)
-            .replace("__PAGE_CSS__", PAGE_CSS);
+            .replace("__PAGE_CSS__", PAGE_CSS)
+            .replace("__COMPONENTS_JS__", HudComponents.JS);
 }

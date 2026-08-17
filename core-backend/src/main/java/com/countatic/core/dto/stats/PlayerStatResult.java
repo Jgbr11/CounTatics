@@ -46,13 +46,13 @@ public class PlayerStatResult {
     private Map<String, Double> metrics;
 
     /**
-     * Insights textuais gerados a partir das métricas.
-     * Chave é o identificador do insight, valor é a mensagem.
-     * Exemplos:
-     * <ul>
-     *   <li>"headshotTip" → "Seu HS% está acima da média (48.5%). Continue praticando aim maps!"</li>
-     *   <li>"flashWarning" → "Apenas 30% das suas flashes cegaram inimigos. Tente aprender line-ups."</li>
-     * </ul>
+     * Insights gerados a partir das métricas.
+     *
+     * <p>Chave é o identificador do insight — em geral o nome da métrica que o
+     * originou, mas nem sempre ({@code "utilityDamage"} vem de
+     * {@code utilityDamagePerRound}, e {@code "trades"}, {@code "clutches"} e
+     * {@code "smokeUsage"} não têm métrica 1:1). O valor traz o texto e a
+     * gravidade; ver {@link Insight}.</p>
      */
-    private Map<String, String> insights;
+    private Map<String, Insight> insights;
 }

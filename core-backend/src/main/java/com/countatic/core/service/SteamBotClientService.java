@@ -1,5 +1,6 @@
 package com.countatic.core.service;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.MatchAnalysisResult;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.dto.valve.GCMatchInfoDTO;
@@ -17,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -328,9 +330,17 @@ public class SteamBotClientService {
                     }
                     if (stat.getInsights() != null && !stat.getInsights().isEmpty()) {
                         sb.append("\n💡 *Dicas de Melhoria*:\n");
-                        for (String insight : stat.getInsights().values()) {
-                            sb.append("  👉 ").append(insight).append("\n");
-                        }
+                        // Ordena por gravidade: o que exige ação primeiro. Numa
+                        // mensagem de chat o jogador lê as primeiras linhas e
+                        // rola o resto, então a ordem é o que decide se o alerta
+                        // chega. O símbolo vem da gravidade, não do texto.
+                        stat.getInsights().values().stream()
+                                .sorted(Comparator.comparing(Insight::gravidade))
+                                .forEach(i -> sb.append("  ")
+                                        .append(simbolo(i.gravidade()))
+                                        .append(" ")
+                                        .append(i.texto())
+                                        .append("\n"));
                     }
                     sb.append("\n");
                 }
@@ -339,5 +349,20 @@ public class SteamBotClientService {
 
         sb.append("GLHF na próxima partida! 🚀");
         return sb.toString();
+    }
+
+    /**
+     * Símbolo do insight no chat da Steam, escolhido pela gravidade.
+     *
+     * <p>Fica aqui e não no texto do insight de propósito: a mesma dica vai
+     * para a página web, que usa ícone SVG. Emoji embutido na mensagem
+     * apareceria duplicado lá.</p>
+     */
+    private static String simbolo(Insight.Severidade gravidade) {
+        return switch (gravidade) {
+            case AVISO -> "⚠️";
+            case SUCESSO -> "✅";
+            case INFO -> "👉";
+        };
     }
 }

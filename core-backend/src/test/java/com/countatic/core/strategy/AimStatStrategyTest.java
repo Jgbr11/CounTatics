@@ -1,5 +1,6 @@
 package com.countatic.core.strategy;
 
+import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
 import com.countatic.core.strategy.impl.AimStatStrategy;
@@ -100,7 +101,9 @@ class AimStatStrategyTest {
         assertThat(result.getMetrics().get("kdRatio")).isEqualTo(3.0);
         assertThat(result.getMetrics().get("totalKills")).isEqualTo(3.0);
         assertThat(result.getMetrics().get("totalDeaths")).isEqualTo(1.0);
-        assertThat(result.getInsights().get("kdRatio")).contains("K/D excelente");
+        assertThat(result.getInsights().get("kdRatio").texto()).contains("K/D excelente");
+        assertThat(result.getInsights().get("kdRatio").gravidade())
+                .isEqualTo(Insight.Severidade.SUCESSO);
     }
 
     /**
