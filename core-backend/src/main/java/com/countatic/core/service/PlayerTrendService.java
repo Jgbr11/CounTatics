@@ -94,24 +94,42 @@ public class PlayerTrendService {
     }
 
     /**
-     * Monta a série das últimas partidas do jogador.
+     * Monta a série das últimas partidas do jogador para uma métrica.
      *
      * @param steamId64 jogador
-     * @param metrica   chave da métrica; precisa estar em {@link BaselineService#metricasSuportadas()}
+     * @param metrica   chave; precisa estar em {@link BaselineService#metricasSuportadas()}
      * @param limite    quantas partidas; ajustado ao intervalo [1, {@value #LIMITE_MAXIMO}]
      */
     @Transactional(readOnly = true)
     public TrendSeriesDTO serie(String steamId64, String metrica, int limite) {
-        var descricao = BaselineService.descrever(metrica)
-                .orElseThrow(() -> new MetricaDesconhecidaException(metrica));
+        return series(steamId64, List.of(metrica), limite).get(0);
+    }
 
-        Function<PlayerMatchStats, Double> ler = LEITORES.get(metrica);
-        if (ler == null) {
-            // Só acontece se alguém acrescentar uma métrica ao BaselineService
-            // e esquecer deste mapa. Falhar alto é melhor que devolver uma
-            // série vazia que parece "jogador sem histórico".
-            throw new IllegalStateException(
-                    "Métrica '" + metrica + "' é comparável mas não tem leitor em PlayerTrendService");
+    /**
+     * Várias métricas de uma vez, a partir da <b>mesma leitura</b> do banco.
+     *
+     * <p>Existe porque as sparklines dos cards pedem uma série por métrica, e
+     * uma consulta por card significaria dez consultas idênticas variando só a
+     * coluna lida — sendo que as linhas necessárias são exatamente as mesmas.
+     * Aqui as linhas são buscadas uma vez e cada métrica é extraída delas.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<TrendSeriesDTO> series(String steamId64, List<String> metricas, int limite) {
+        if (metricas == null || metricas.isEmpty()) {
+            throw new MetricaDesconhecidaException("(nenhuma)");
+        }
+        // Valida tudo antes de consultar: devolver metade das séries e estourar
+        // no meio deixaria o cliente sem saber o que veio.
+        for (String metrica : metricas) {
+            BaselineService.descrever(metrica)
+                    .orElseThrow(() -> new MetricaDesconhecidaException(metrica));
+            if (!LEITORES.containsKey(metrica)) {
+                // Só acontece se alguém acrescentar uma métrica ao BaselineService
+                // e esquecer deste mapa. Falhar alto é melhor que devolver uma
+                // série vazia que parece "jogador sem histórico".
+                throw new IllegalStateException(
+                        "Métrica '" + metrica + "' é comparável mas não tem leitor em PlayerTrendService");
+            }
         }
 
         int n = Math.max(1, Math.min(limite, LIMITE_MAXIMO));
@@ -124,11 +142,29 @@ public class PlayerTrendService {
         List<PlayerMatchStats> cronologico = new ArrayList<>(recentes);
         cronologico.sort(Comparator.comparing(s -> s.getMatch().getPlayedAt()));
 
+        // A faixa da partida mais recente é a que representa o jogador hoje.
+        RankTier faixa = null;
+        for (PlayerMatchStats s : cronologico) {
+            if (s.getRankTier() != null) faixa = s.getRankTier();
+        }
+
+        List<TrendSeriesDTO> saida = new ArrayList<>(metricas.size());
+        for (String metrica : metricas) {
+            saida.add(montar(steamId64, metrica, cronologico, faixa));
+        }
+        return saida;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+
+    private TrendSeriesDTO montar(String steamId64, String metrica,
+                                  List<PlayerMatchStats> cronologico, RankTier faixa) {
+        var descricao = BaselineService.descrever(metrica).orElseThrow();
+        Function<PlayerMatchStats, Double> ler = LEITORES.get(metrica);
+
         List<TrendSeriesDTO.Ponto> pontos = new ArrayList<>(cronologico.size());
         double soma = 0;
         int comValor = 0;
-
-        RankTier faixa = null;
 
         for (PlayerMatchStats s : cronologico) {
             Match m = s.getMatch();
@@ -137,10 +173,6 @@ public class PlayerTrendService {
             if (valor != null) {
                 soma += valor;
                 comValor++;
-            }
-            // A faixa da partida mais recente é a que representa o jogador hoje.
-            if (s.getRankTier() != null) {
-                faixa = s.getRankTier();
             }
 
             // "13-9" não diz nada sem saber de que lado o jogador estava.

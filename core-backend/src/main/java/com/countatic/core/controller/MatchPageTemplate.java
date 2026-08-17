@@ -132,6 +132,8 @@ final class MatchPageTemplate {
                 <div id="rank"></div>
               </header>
 
+              <div id="banner"></div>
+
               <section class="panel cut">
                 <div class="cut-in">
                   <div class="panel-head"><h2>Placar</h2></div>
@@ -210,13 +212,13 @@ final class MatchPageTemplate {
              */
             const METRICAS = {
               // ─── Aim ───────────────────────────────────────────────
-              kdRatio:             {rotulo:"K/D", fmt:v=>v.toFixed(2), icone:"mira", principal:true},
+              kdRatio:             {rotulo:"K/D", fmt:v=>v.toFixed(2), icone:"mira", principal:true, spark:true},
               headshotPercentage:  {rotulo:"Headshot %", fmt:v=>v.toFixed(1)+"%", icone:"mira",
-                                    ajuda:"Proporção das suas kills que foram na cabeça. Só existe se você matou alguém."},
-              killsPerRound:       {rotulo:"Kills / round", fmt:v=>v.toFixed(2), icone:"mira"},
-              deathsPerRound:      {rotulo:"Mortes / round", fmt:v=>v.toFixed(2), icone:"morte", dir:"menor"},
+                                    ajuda:"Proporção das suas kills que foram na cabeça. Só existe se você matou alguém.", spark:true},
+              killsPerRound:       {rotulo:"Kills / round", fmt:v=>v.toFixed(2), icone:"mira", spark:true},
+              deathsPerRound:      {rotulo:"Mortes / round", fmt:v=>v.toFixed(2), icone:"morte", dir:"menor", spark:true},
               crosshairPlacementScore: {rotulo:"Crosshair placement", fmt:v=>v.toFixed(1)+"%", icone:"mira",
-                                    ajuda:"Percentual de disparos em que a mira já estava a menos de 5° da cabeça do inimigo. Quanto maior, menos ajuste o duelo exige."},
+                                    ajuda:"Percentual de disparos em que a mira já estava a menos de 5° da cabeça do inimigo. Quanto maior, menos ajuste o duelo exige.", spark:true},
               medianCrosshairErrorDegrees: {rotulo:"Erro de mira (mediana)", fmt:v=>v.toFixed(1)+"°", icone:"mira", dir:"menor",
                                     ajuda:"Ângulo mediano entre a sua mira e a cabeça do inimigo no instante do disparo. Menor é melhor."},
               evaluatedShots:      {rotulo:"Disparos avaliados", fmt:v=>v.toFixed(0), icone:"mira", dir:"neutro",
@@ -227,7 +229,7 @@ final class MatchPageTemplate {
 
               // ─── Utility ───────────────────────────────────────────
               flashEfficiency:     {rotulo:"Eficiência de flash", fmt:v=>v.toFixed(1)+"%", icone:"granada", principal:true,
-                                    ajuda:"Percentual das suas flashes que cegaram ao menos um inimigo. Cada flash conta no máximo uma vez."},
+                                    ajuda:"Percentual das suas flashes que cegaram ao menos um inimigo. Cada flash conta no máximo uma vez.", spark:true},
               teamFlashRate:       {rotulo:"Flash em aliado", fmt:v=>v.toFixed(1)+"%", icone:"granada", dir:"menor"},
               avgEnemyFlashDuration: {rotulo:"Cegueira média", fmt:v=>v.toFixed(2)+"s", icone:"granada"},
               enemyBlindsPerFlash: {rotulo:"Inimigos por flash", fmt:v=>v.toFixed(2), icone:"granada",
@@ -237,7 +239,7 @@ final class MatchPageTemplate {
               totalTeamBlinds:     {rotulo:"Aliados cegados", fmt:v=>v.toFixed(0), icone:"granada", dir:"menor"},
               flashesPerRound:     {rotulo:"Flashes / round", fmt:v=>v.toFixed(2), icone:"granada", dir:"neutro"},
               totalUtilityDamage:  {rotulo:"Dano de utilitária", fmt:v=>v.toFixed(0), icone:"dano"},
-              utilityDamagePerRound: {rotulo:"Dano util. / round", fmt:v=>v.toFixed(1), icone:"dano"},
+              utilityDamagePerRound: {rotulo:"Dano util. / round", fmt:v=>v.toFixed(1), icone:"dano", spark:true},
               totalSmokesThrown:   {rotulo:"Smokes", fmt:v=>v.toFixed(0), icone:"fumaca", dir:"neutro"},
               smokesPerRound:      {rotulo:"Smokes / round", fmt:v=>v.toFixed(2), icone:"fumaca", dir:"neutro"},
               totalHEThrown:       {rotulo:"HEs", fmt:v=>v.toFixed(0), icone:"granada", dir:"neutro"},
@@ -245,7 +247,7 @@ final class MatchPageTemplate {
 
               // ─── Impacto ───────────────────────────────────────────
               adr:                 {rotulo:"ADR", fmt:v=>v.toFixed(1), icone:"dano", principal:true,
-                                    ajuda:"Dano médio por round. Captura a contribuição de quem abre o duelo sem finalizar."},
+                                    ajuda:"Dano médio por round. Captura a contribuição de quem abre o duelo sem finalizar.", spark:true},
               totalDamage:         {rotulo:"Dano total", fmt:v=>v.toFixed(0), icone:"dano"},
               tradeKills:          {rotulo:"Trade kills", fmt:v=>v.toFixed(0), icone:"duelo",
                                     ajuda:"Vezes que você matou quem tinha acabado de matar um aliado, em até 5 s."},
@@ -254,7 +256,7 @@ final class MatchPageTemplate {
               openingDuels:        {rotulo:"Primeiros duelos", fmt:v=>v.toFixed(0), icone:"duelo", dir:"neutro"},
               openingDuelsWon:     {rotulo:"Primeiros duelos ganhos", fmt:v=>v.toFixed(0), icone:"duelo"},
               openingDuelWinRate:  {rotulo:"Taxa 1º duelo", fmt:v=>v.toFixed(1)+"%", icone:"duelo",
-                                    ajuda:"Quantos dos primeiros duelos do round você venceu. É o duelo de maior impacto no resultado."},
+                                    ajuda:"Quantos dos primeiros duelos do round você venceu. É o duelo de maior impacto no resultado.", spark:true},
               clutchesWon:         {rotulo:"Clutches ganhos", fmt:v=>v.toFixed(0), icone:"relogio"},
               clutchesAttempted:   {rotulo:"Clutches tentados", fmt:v=>v.toFixed(0), icone:"relogio", dir:"neutro"},
               clutchWinRate:       {rotulo:"Taxa de clutch", fmt:v=>v.toFixed(1)+"%", icone:"relogio"},
@@ -458,6 +460,10 @@ final class MatchPageTemplate {
               el("detailTitle").textContent = "Métricas — " + (p.playerName || p.steamId64);
 
               let html = renderBaseline(p.baseline);
+
+              // A razao sozinha nao mostra volume: 2.25 pode ser 18/8 ou 45/20.
+              html += KdBar(p.kills, p.deaths);
+
               const cats = Object.keys(p.metrics || {});
 
               if (!cats.length) {
@@ -475,6 +481,7 @@ final class MatchPageTemplate {
                 for (const [k, v] of entradas) {
                   const c = cfg(k);
                   html += MetricCard({
+                    chave: k,
                     label: c.rotulo,
                     valor: c.fmt(v),
                     icone: c.icone,
@@ -492,11 +499,50 @@ final class MatchPageTemplate {
               // painel próprio, ordenado por gravidade. Espalhadas, um elogio e
               // um alerta tinham o mesmo peso e o jogador precisava ler tudo
               // para achar o que fazer.
+              const dicas = achatarInsights(p.insights);
               el("coachTitle").textContent =
                 "O que treinar — " + (p.playerName || p.steamId64);
-              el("coach").innerHTML = CoachPanel(achatarInsights(p.insights));
+              el("coach").innerHTML = CoachPanel(dicas);
+              el("banner").innerHTML = CoachBanner(dicas);
 
               renderTendencia(p);
+              carregarSparklines(p);
+            }
+
+            /**
+             * Sparklines dos cards.
+             *
+             * Uma requisição para todas as métricas — o backend lê as mesmas
+             * linhas uma vez só. Os cards já estão na tela quando a resposta
+             * chega; a curva é acrescentada depois, e a página nunca fica
+             * esperando por ela.
+             */
+            async function carregarSparklines(p) {
+              const chaves = Object.keys(METRICAS)
+                .filter(k => cfg(k).spark)
+                .filter(k => Object.values(p.metrics || {}).some(cat => k in cat));
+
+              if (!chaves.length) return;
+
+              try {
+                const r = await fetch(`/api/players/${encodeURIComponent(p.steamId64)}/trends`
+                                    + `?metrics=${chaves.join(",")}&limit=10`);
+                if (!r.ok) return;
+                const { series } = await r.json();
+
+                for (const s of series || []) {
+                  const valores = (s.pontos || []).map(x => x.valor);
+                  const svg = Sparkline(valores, s.maiorEhMelhor);
+                  if (!svg) continue;
+
+                  // Card ainda na tela? Trocar de jogador rápido pode ter
+                  // trocado a lista embaixo desta resposta.
+                  const alvo = document.querySelector(`[data-metrica="${s.metric}"] .cut-in`);
+                  if (alvo && !alvo.querySelector(".spark")) alvo.insertAdjacentHTML("beforeend", svg);
+                }
+              } catch (e) {
+                // Sparkline é complemento do número, que já está visível.
+              }
             }
 
             // ═══════════════════════════════════════════════════════════

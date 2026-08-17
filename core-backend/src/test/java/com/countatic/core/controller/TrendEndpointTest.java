@@ -72,4 +72,33 @@ class TrendEndpointTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.maiorEhMelhor").value(false));
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  Múltiplas séries — alimenta as sparklines dos cards
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("/trends devolve uma série por métrica pedida, na ordem pedida")
+    void trendsDevolveUmaSeriePorMetrica() throws Exception {
+        mockMvc.perform(get("/api/players/{id}/trends", STEAM_ID)
+                        .param("metrics", "adr,kdRatio,headshotPercentage"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.series.length()").value(3))
+                .andExpect(jsonPath("$.series[0].metric").value("adr"))
+                .andExpect(jsonPath("$.series[1].metric").value("kdRatio"))
+                .andExpect(jsonPath("$.series[2].metric").value("headshotPercentage"));
+    }
+
+    /**
+     * Validar tudo antes de consultar importa: devolver metade das séries e
+     * estourar no meio deixaria o cliente sem saber o que veio.
+     */
+    @Test
+    @DisplayName("uma métrica inválida no meio invalida a requisição inteira")
+    void umaMetricaInvalidaRejeitaTudo() throws Exception {
+        mockMvc.perform(get("/api/players/{id}/trends", STEAM_ID)
+                        .param("metrics", "adr,naoExiste,kdRatio"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.metricasValidas").isNotEmpty());
+    }
 }

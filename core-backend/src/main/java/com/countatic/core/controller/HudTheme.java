@@ -461,6 +461,37 @@ final class HudTheme {
                         font-size:.68rem;font-weight:600;letter-spacing:.12em;
                         text-transform:uppercase;color:var(--muted)}
 
+            /* Banner do alerta mais grave, no topo da página. Um só — dois
+               deixam de ser destaque e viram parede. */
+            .coach-banner{
+              display:flex;align-items:flex-start;gap:.75rem;
+              margin-bottom:1.25rem;padding:.85rem 1rem;
+              background:rgba(255,77,106,.07);
+              border:1px solid var(--line);
+              border-left:3px solid var(--bad);
+            }
+            .coach-banner .ico{color:var(--bad);flex:0 0 auto;margin-top:.1rem}
+            .coach-banner p{margin:0;font-size:.95rem;line-height:1.45}
+            .coach-banner a{display:inline-block;margin-top:.35rem;
+                            font-size:.72rem;font-weight:600;letter-spacing:.1em;
+                            text-transform:uppercase;color:var(--neon)}
+
+            /* ───────────────────────────────────────────────────────────
+               SPARKLINE E BARRA DE K/D
+               ─────────────────────────────────────────────────────────── */
+
+            /* Ocupa a largura do card e altura fixa: a curva é forma, não
+               escala — comparar dois cards pela altura seria enganoso, já que
+               cada um normaliza pelo próprio mínimo e máximo. */
+            .spark{display:block;width:100%;height:22px;margin-top:.5rem;opacity:.85}
+
+            .kdbar{margin-top:.5rem}
+            .kdbar-track{height:6px;display:flex;overflow:hidden;
+                         background:var(--bad);border:1px solid var(--line)}
+            .kdbar-k{display:block;height:100%;background:var(--good)}
+            .kdbar-legend{display:flex;justify-content:space-between;
+                          margin-top:.3rem;font-family:var(--f-mono);font-size:.68rem}
+
             /* ───────────────────────────────────────────────────────────
                BOTÃO
                Fundo escuro, borda neon, glow só no hover/foco — o estado de

@@ -196,6 +196,29 @@ public class MatchController {
     }
 
     /**
+     * Várias séries de uma vez, para as sparklines dos cards.
+     *
+     * <p>Uma requisição por card significaria dez consultas idênticas variando
+     * só a coluna lida — as linhas necessárias são as mesmas. Aqui o banco é
+     * lido uma vez.</p>
+     */
+    @GetMapping("/players/{steamId}/trends")
+    public ResponseEntity<?> trends(@PathVariable("steamId") String steamId,
+                                    @RequestParam(name = "metrics") List<String> metrics,
+                                    @RequestParam(name = "limit",
+                                            defaultValue = "" + PlayerTrendService.LIMITE_PADRAO) int limit) {
+        try {
+            return ResponseEntity.ok(Map.of("series", trendService.series(steamId, metrics, limit)));
+        } catch (PlayerTrendService.MetricaDesconhecidaException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage(),
+                    "metricasValidas", BaselineService.metricasSuportadas()
+            ));
+        }
+    }
+
+    /**
      * Painel consolidado do jogador, em JSON.
      *
      * <p>Aceita SteamID64 porque é a API — quem chama já conhece o jogador. A

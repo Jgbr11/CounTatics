@@ -91,7 +91,7 @@ final class HudComponents {
              * junto com o fundo; sem a camada externa, a diagonal fica sem
              * linha.
              */
-            function MetricCard({ label, valor, icone, status, principal, ajuda }) {
+            function MetricCard({ label, valor, icone, status, principal, ajuda, spark, chave }) {
               const classes = ["chip", "cut"];
               if (status === "acima")  classes.push("is-acima");
               if (status === "abaixo") classes.push("is-abaixo");
@@ -108,10 +108,90 @@ final class HudComponents {
               const seta = status === "acima" ? "▲" : (status === "abaixo" ? "▼" : "");
               const sig = seta ? `<span class="sig" aria-hidden="true">${seta}</span>` : "";
 
-              return `<div class="${classes.join(" ")}">
+              // A chave identifica o card para quem acrescenta a sparkline
+              // depois, quando a resposta do histórico chega.
+              const attrChave = chave ? ` data-metrica="${esc(chave)}"` : "";
+
+              return `<div class="${classes.join(" ")}"${attrChave}>
                   <div class="cut-in">
                     <div class="k"${attrAjuda}>${icone ? icon(icone, 13) : ""}<span>${esc(label)}</span></div>
                     <div class="v">${sig}${esc(valor)}</div>
+                    ${spark || ""}
+                  </div>
+                </div>`;
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            //  Sparkline
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Micro-gráfico para o rodapé de um MetricCard.
+             *
+             * Sem eixo, sem rótulo, sem ponto — só a forma da curva. O número
+             * do card já diz quanto; a sparkline responde "e isso está subindo
+             * ou descendo?", que é a pergunta seguinte. Qualquer ornamento aqui
+             * competiria com o número, que é o elemento principal do card.
+             *
+             * O último ponto ganha uma marca, porque é o valor que o card está
+             * exibindo — sem ela a curva parece desligada do número.
+             */
+            function Sparkline(valores, maiorEhMelhor) {
+              const v = (valores || []).filter(n => typeof n === "number");
+              if (v.length < 2) return "";
+
+              const W = 100, H = 24, P = 2;
+              let min = Math.min(...v), max = Math.max(...v);
+              if (min === max) { min -= 1; max += 1; }
+
+              const x = i => P + (i * (W - 2 * P)) / (v.length - 1);
+              const y = n => P + (H - 2 * P) * (1 - (n - min) / (max - min));
+
+              const pontos = v.map((n, i) => `${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(" ");
+
+              // A cor segue a direção da métrica: em mortes por round, a curva
+              // subindo é notícia ruim.
+              const subiu = v[v.length - 1] > v[0];
+              const bom = maiorEhMelhor === false ? !subiu : subiu;
+              const cor = v[v.length - 1] === v[0] ? "var(--muted)"
+                        : (bom ? "var(--good)" : "var(--bad)");
+
+              return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+                           aria-hidden="true">
+                  <polyline points="${pontos}" fill="none" stroke="${cor}"
+                            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="${x(v.length - 1).toFixed(1)}" cy="${y(v[v.length - 1]).toFixed(1)}"
+                          r="2" fill="${cor}"/>
+                </svg>`;
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            //  KdBar
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Proporção de kills e mortes como barra.
+             *
+             * "2.25" exige converter mentalmente para saber se foram 18/8 ou
+             * 45/20. A barra mostra o volume junto da razão, e as duas metades
+             * carregam o próprio número — a cor sozinha não diria qual é qual
+             * para quem não distingue verde de vermelho.
+             */
+            function KdBar(kills, mortes) {
+              const k = Number(kills) || 0, d = Number(mortes) || 0;
+              const total = k + d;
+              if (!total) return "";
+
+              const pk = (k / total) * 100;
+
+              return `<div class="kdbar" role="img"
+                           aria-label="${k} kills contra ${d} mortes">
+                  <div class="kdbar-track">
+                    <span class="kdbar-k" style="width:${pk.toFixed(1)}%"></span>
+                  </div>
+                  <div class="kdbar-legend">
+                    <span class="up">${k} kills</span>
+                    <span class="down">${d} mortes</span>
                   </div>
                 </div>`;
             }
@@ -394,6 +474,29 @@ final class HudComponents {
               }).join("");
 
               return `<ul class="coach">${itens}</ul>`;
+            }
+
+            /**
+             * Promove o alerta mais grave para o topo da página.
+             *
+             * O painel completo fica no fim da rolagem, e quem abre o relatório
+             * pelo link da Steam costuma ler o placar e sair. Trazer UM aviso
+             * para cima resolve isso sem transformar a página numa parede de
+             * alertas — mais de um banner deixa de ser destaque.
+             *
+             * Só AVISO sobe: elogio não precisa interromper a leitura.
+             */
+            function CoachBanner(insights) {
+              const aviso = (insights || []).find(i => i.gravidade === "AVISO");
+              if (!aviso) return "";
+
+              return `<div class="coach-banner">
+                  ${icon("aviso", 20)}
+                  <div>
+                    <p>${esc(aviso.texto)}</p>
+                    <a href="#coachTitle">Ver tudo o que treinar</a>
+                  </div>
+                </div>`;
             }
 
             /**
