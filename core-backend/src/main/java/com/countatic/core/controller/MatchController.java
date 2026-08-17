@@ -3,11 +3,13 @@ package com.countatic.core.controller;
 import com.countatic.core.dto.parser.ParsedDemoDTO;
 import com.countatic.core.dto.stats.MatchAnalysisResult;
 import com.countatic.core.entity.MatchFetchJob;
+import com.countatic.core.service.BaselineService;
 import com.countatic.core.service.DemoParserClientService;
 import com.countatic.core.service.MatchAnalysisService;
 import com.countatic.core.service.MatchFetchJobService;
 import com.countatic.core.service.MatchQueryService;
 import com.countatic.core.service.MatchReprocessService;
+import com.countatic.core.service.PlayerTrendService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,17 +33,20 @@ public class MatchController {
     private final DemoParserClientService demoParserClientService;
     private final MatchAnalysisService matchAnalysisService;
     private final MatchReprocessService matchReprocessService;
+    private final PlayerTrendService trendService;
 
     public MatchController(MatchQueryService matchQueryService,
                            MatchFetchJobService jobService,
                            DemoParserClientService demoParserClientService,
                            MatchAnalysisService matchAnalysisService,
-                           MatchReprocessService matchReprocessService) {
+                           MatchReprocessService matchReprocessService,
+                           PlayerTrendService trendService) {
         this.matchQueryService = matchQueryService;
         this.jobService = jobService;
         this.demoParserClientService = demoParserClientService;
         this.matchAnalysisService = matchAnalysisService;
         this.matchReprocessService = matchReprocessService;
+        this.trendService = trendService;
     }
 
     /** Lista as partidas analisadas, mais recentes primeiro. */
@@ -154,6 +159,32 @@ public class MatchController {
                 .toList();
 
         return ResponseEntity.ok(body);
+    }
+
+    /**
+     * Evolução de uma métrica do jogador ao longo das últimas partidas.
+     *
+     * <p>Fica aqui, ao lado de {@code /jobs}, porque é a outra leitura por
+     * jogador — o {@code PlayerAuthController} cuida só de credenciais.</p>
+     *
+     * <p>Métrica inválida devolve <b>400 com a lista das válidas</b>, e não um
+     * 404 ou uma série vazia: série vazia é indistinguível de "jogador sem
+     * histórico" e mandaria quem integra procurar o problema no lugar errado.</p>
+     */
+    @GetMapping("/players/{steamId}/trend")
+    public ResponseEntity<?> trend(@PathVariable("steamId") String steamId,
+                                   @RequestParam(name = "metric", defaultValue = "adr") String metric,
+                                   @RequestParam(name = "limit",
+                                           defaultValue = "" + PlayerTrendService.LIMITE_PADRAO) int limit) {
+        try {
+            return ResponseEntity.ok(trendService.serie(steamId, metric, limit));
+        } catch (PlayerTrendService.MetricaDesconhecidaException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage(),
+                    "metricasValidas", BaselineService.metricasSuportadas()
+            ));
+        }
     }
 
     /**

@@ -366,6 +366,32 @@ final class HudTheme {
                   padding:.7rem .85rem;font-size:.92rem;color:var(--muted)}
 
             /* ───────────────────────────────────────────────────────────
+               TREND CHART
+               Sem grade: a única horizontal é a média da própria série.
+               O SVG estica na largura e trava a altura, entao o grafico
+               acompanha a coluna sem recalcular nada em JS.
+               ─────────────────────────────────────────────────────────── */
+            .trend{margin-top:.4rem}
+            .trend svg{width:100%;height:150px;display:block;overflow:visible}
+            .trend-head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;
+                        margin-bottom:.3rem;font-size:.85rem}
+            .trend-label{font-family:var(--f-body);font-weight:600;
+                         letter-spacing:.1em;text-transform:uppercase;font-size:.72rem}
+            .trend-foot{display:flex;justify-content:space-between;
+                        font-size:.7rem;margin-top:.2rem}
+
+            /* Botões de métrica: o .btn já existia no vocabulário e não tinha
+               tela usando. O ativo é marcado por aria-pressed, que dá o estado
+               ao leitor de tela em vez de só pintar. */
+            .trend-tabs{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.9rem}
+            .trend-tabs .btn{padding:.35rem .8rem;font-size:.72rem}
+            .trend-tabs .btn[aria-pressed="true"]{
+              border-color:var(--neon);
+              background:rgba(176,38,255,.16);
+              box-shadow:0 0 12px rgba(176,38,255,.35);
+            }
+
+            /* ───────────────────────────────────────────────────────────
                COACH PANEL
                Feedback consolidado, ordenado por gravidade. A cor da barra
                lateral e a do ícone vêm da mesma variável --sev, então trocar

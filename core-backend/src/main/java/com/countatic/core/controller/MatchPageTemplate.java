@@ -176,6 +176,15 @@ final class MatchPageTemplate {
 
               <section class="panel cut">
                 <div class="cut-in">
+                  <div class="panel-head"><h2 id="trendTitle">Evolução</h2></div>
+                  <div class="trend-tabs" id="trendTabs" role="group"
+                       aria-label="Métrica do gráfico de evolução"></div>
+                  <div id="trend" aria-live="polite"></div>
+                </div>
+              </section>
+
+              <section class="panel cut">
+                <div class="cut-in">
                   <div class="panel-head"><h2 id="coachTitle">O que treinar</h2></div>
                   <div id="coach" aria-live="polite"></div>
                 </div>
@@ -493,6 +502,71 @@ final class MatchPageTemplate {
               el("coachTitle").textContent =
                 "O que treinar — " + (p.playerName || p.steamId64);
               el("coach").innerHTML = CoachPanel(achatarInsights(p.insights));
+
+              renderTendencia(p);
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            //  Evolução — busca a série no backend
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Métricas oferecidas no gráfico.
+             *
+             * Um subconjunto do que o endpoint aceita: são as que o jogador
+             * acompanha entre partidas. Oferecer as dez viraria uma fileira de
+             * botões que ninguém lê.
+             */
+            const TENDENCIAS = ["adr", "kdRatio", "headshotPercentage", "flashEfficiency"];
+
+            let metricaAtual = TENDENCIAS[0];
+            let jogadorAtual = null;
+
+            function renderTendencia(p) {
+              jogadorAtual = p;
+              el("trendTitle").textContent = "Evolução — " + (p.playerName || p.steamId64);
+
+              el("trendTabs").innerHTML = TENDENCIAS.map(k =>
+                `<button type="button" class="btn" data-metrica="${k}"
+                         aria-pressed="${k === metricaAtual}">${txt(cfg(k).rotulo)}</button>`
+              ).join("");
+
+              el("trendTabs").querySelectorAll("button").forEach(b => {
+                b.onclick = () => { metricaAtual = b.dataset.metrica; renderTendencia(jogadorAtual); };
+              });
+
+              carregarSerie(p.steamId64, metricaAtual);
+            }
+
+            /**
+             * A série vem do servidor, não do payload da página.
+             *
+             * Embuti-la significaria carregar o histórico dos dez jogadores em
+             * toda visita, para exibir o de um. Mesma origem, então não há CORS.
+             */
+            async function carregarSerie(steamId, metrica) {
+              const alvo = el("trend");
+              alvo.innerHTML = `<p class="hint">Carregando…</p>`;
+
+              // Guarda contra corrida: cliques rápidos disparam vários fetch, e
+              // o que responde por último venceria, mesmo sendo o pedido antigo.
+              const pedido = steamId + "|" + metrica;
+              alvo.dataset.pedido = pedido;
+
+              try {
+                const r = await fetch(`/api/players/${encodeURIComponent(steamId)}/trend`
+                                    + `?metric=${encodeURIComponent(metrica)}&limit=10`);
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                const serie = await r.json();
+
+                if (alvo.dataset.pedido !== pedido) return;
+                alvo.innerHTML = TrendChart(serie);
+              } catch (e) {
+                if (alvo.dataset.pedido !== pedido) return;
+                // A evolução é complemento: se ela falhar, o relatório da
+                // partida continua inteiro logo acima.
+                alvo.innerHTML = `<p class="hint">Não foi possível carregar a evolução agora.</p>`;
+              }
             }
 
             renderHeader();

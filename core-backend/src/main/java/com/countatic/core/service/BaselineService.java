@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -161,6 +162,25 @@ public class BaselineService {
     /** Métricas que o sistema sabe comparar. */
     public static Set<String> metricasSuportadas() {
         return METRICAS.keySet();
+    }
+
+    /**
+     * Descrição pública de uma métrica comparável.
+     *
+     * <p>Existe para que outros serviços — o de tendência, por exemplo —
+     * reaproveitem o rótulo e a direção sem redeclará-los. O nome da coluna
+     * fica de fora de propósito: ele é detalhe de persistência e só faz
+     * sentido dentro da whitelist do SQL nativo daqui.</p>
+     */
+    public record MetricaDescricao(String chave, String rotulo, boolean maiorEhMelhor) {
+    }
+
+    /** Descrição da métrica, ou vazio se ela não for comparável. */
+    public static Optional<MetricaDescricao> descrever(String chave) {
+        MetricaInfo info = METRICAS.get(chave);
+        return info == null
+                ? Optional.empty()
+                : Optional.of(new MetricaDescricao(chave, info.rotulo(), info.maiorEhMelhor()));
     }
 
     // ═══════════════════════════════════════════════════════════════════
