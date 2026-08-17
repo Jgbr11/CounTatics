@@ -561,6 +561,7 @@ final class MatchPageTemplate {
 
                 if (alvo.dataset.pedido !== pedido) return;
                 alvo.innerHTML = TrendChart(serie);
+                ativarTooltip(alvo);
               } catch (e) {
                 if (alvo.dataset.pedido !== pedido) return;
                 // A evolução é complemento: se ela falhar, o relatório da

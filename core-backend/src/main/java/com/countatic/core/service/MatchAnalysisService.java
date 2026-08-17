@@ -272,7 +272,11 @@ public class MatchAnalysisService {
             Double tradesPorRound = (tradeKills != null && rounds > 0)
                     ? round2(tradeKills / rounds) : null;
 
+            Team lado = descobrirLado(match, player);
+
             PlayerMatchStats stats = PlayerMatchStats.builder()
+                    .playerSide(lado)
+                    .won(venceu(match, lado))
                     .match(match)
                     .player(player)
                     .steamId64(player.getSteamId64())
@@ -299,6 +303,49 @@ public class MatchAnalysisService {
 
         log.debug("Desempenhos registrados para {} jogadores (faixa {}).",
                 participants.size(), match.getRankTier());
+    }
+
+    /**
+     * De que lado o jogador terminou a partida.
+     *
+     * <p>Só os eventos revelam isso — nem {@code Match} nem {@code Player}
+     * guardam o time. Como o lado troca na metade da partida, vale o do
+     * <b>último</b> evento em que o jogador aparece: é o lado com que ele
+     * terminou, e é esse que o placar final reflete.</p>
+     *
+     * <p>Devolve {@code null} quando nenhum evento identifica o jogador —
+     * alguém que entrou e saiu sem disparar, matar ou morrer.</p>
+     */
+    private Team descobrirLado(Match match, Player player) {
+        Team lado = null;
+        for (Round round : match.getRounds()) {
+            for (MatchEvent e : round.getEvents()) {
+                if (e.getActor() != null && player.getId().equals(e.getActor().getId())
+                        && e.getActorSide() != null) {
+                    lado = e.getActorSide();
+                } else if (e.getVictim() != null && player.getId().equals(e.getVictim().getId())
+                        && e.getVictimSide() != null) {
+                    lado = e.getVictimSide();
+                }
+            }
+        }
+        return lado;
+    }
+
+    /**
+     * Se o lado informado venceu a partida.
+     *
+     * <p>{@code null} quando o lado é desconhecido, o placar não foi
+     * registrado ou a partida empatou — três situações em que afirmar vitória
+     * ou derrota seria invenção.</p>
+     */
+    private Boolean venceu(Match match, Team lado) {
+        Integer ct = match.getScoreCT();
+        Integer tr = match.getScoreTR();
+        if (lado == null || ct == null || tr == null || ct.equals(tr)) {
+            return null;
+        }
+        return lado == Team.CT ? ct > tr : tr > ct;
     }
 
     private static Integer toInt(Double d) {

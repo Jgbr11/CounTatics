@@ -3,6 +3,8 @@ package com.countatic.core.service;
 import com.countatic.core.dto.stats.TrendSeriesDTO;
 import com.countatic.core.entity.Match;
 import com.countatic.core.entity.PlayerMatchStats;
+import com.countatic.core.entity.RankTier;
+import com.countatic.core.entity.Team;
 import com.countatic.core.repository.PlayerMatchStatsRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -64,9 +66,12 @@ public class PlayerTrendService {
     }
 
     private final PlayerMatchStatsRepository statsRepository;
+    private final BaselineService baselineService;
 
-    public PlayerTrendService(PlayerMatchStatsRepository statsRepository) {
+    public PlayerTrendService(PlayerMatchStatsRepository statsRepository,
+                              BaselineService baselineService) {
         this.statsRepository = statsRepository;
+        this.baselineService = baselineService;
     }
 
     /** Lançada quando a métrica pedida não é uma das comparáveis. */
@@ -111,6 +116,8 @@ public class PlayerTrendService {
         double soma = 0;
         int comValor = 0;
 
+        RankTier faixa = null;
+
         for (PlayerMatchStats s : cronologico) {
             Match m = s.getMatch();
             Double valor = ler.apply(s);
@@ -119,14 +126,35 @@ public class PlayerTrendService {
                 soma += valor;
                 comValor++;
             }
+            // A faixa da partida mais recente é a que representa o jogador hoje.
+            if (s.getRankTier() != null) {
+                faixa = s.getRankTier();
+            }
+
+            // "13-9" não diz nada sem saber de que lado o jogador estava.
+            // Orientar aqui evita que a interface repita essa lógica.
+            Integer proprio = null, adversario = null;
+            if (s.getPlayerSide() != null && m.getScoreCT() != null && m.getScoreTR() != null) {
+                boolean ct = s.getPlayerSide() == Team.CT;
+                proprio = ct ? m.getScoreCT() : m.getScoreTR();
+                adversario = ct ? m.getScoreTR() : m.getScoreCT();
+            }
 
             pontos.add(TrendSeriesDTO.Ponto.builder()
                     .matchId(m.getId())
                     .mapName(m.getMapName())
                     .playedAt(m.getPlayedAt())
                     .valor(valor)
+                    .won(s.getWon())
+                    .scoreSelf(proprio)
+                    .scoreEnemy(adversario)
                     .build());
         }
+
+        // Segunda referência do gráfico. Reaproveita o mesmo agregado que
+        // alimenta a comparação por percentil, inclusive a guarda de amostra
+        // mínima — se ela não passar, a linha simplesmente não é desenhada.
+        Double mediaFaixa = faixa == null ? null : baselineService.mediaDaFaixa(faixa, metrica);
 
         return TrendSeriesDTO.builder()
                 .steamId64(steamId64)
@@ -136,6 +164,8 @@ public class PlayerTrendService {
                 // Média só dos pontos medidos: incluir os ausentes como zero
                 // afundaria a linha de referência.
                 .media(comValor > 0 ? soma / comValor : null)
+                .mediaDaFaixa(mediaFaixa)
+                .faixaLabel(mediaFaixa == null || faixa == null ? null : faixa.getLabel())
                 .pontos(pontos)
                 .build();
     }

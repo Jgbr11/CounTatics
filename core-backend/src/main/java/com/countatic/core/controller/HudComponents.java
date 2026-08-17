@@ -187,20 +187,47 @@ final class HudComponents {
                       fill="url(#${id}a)" stroke="none"/>`
                 : "";
 
+              // A bolinha carrega o resultado da partida. Saber que o K/D foi
+              // 1.5 é uma informação; saber que foi 1.5 numa DERROTA é a que
+              // muda o que o jogador vai investigar.
               const bolinhas = pts.map((p, i) => {
                 if (typeof p.valor !== "number") return "";
-                const data = p.playedAt ? new Date(p.playedAt).toLocaleDateString("pt-BR") : "";
-                return `<circle cx="${x(i).toFixed(1)}" cy="${y(p.valor).toFixed(1)}" r="3.5"
-                          fill="var(--bg)" stroke="var(--neon)" stroke-width="2">
-                          <title>${esc(p.mapName || "")} · ${esc(data)} · ${esc(p.valor)}</title>
-                        </circle>`;
+                const cor = p.won === true ? "var(--good)"
+                          : (p.won === false ? "var(--bad)" : "var(--neon)");
+                return `<circle class="tp" cx="${x(i).toFixed(1)}" cy="${y(p.valor).toFixed(1)}"
+                          r="4" fill="var(--bg)" stroke="${cor}" stroke-width="2"
+                          tabindex="0" data-i="${i}"/>`;
               }).join("");
 
-              const media = typeof serie.media === "number" && serie.media >= min && serie.media <= max
-                ? `<line x1="${PAD_X}" x2="${W - PAD_X}" y1="${y(serie.media).toFixed(1)}"
-                         y2="${y(serie.media).toFixed(1)}" stroke="var(--line)"
-                         stroke-width="1" stroke-dasharray="4 4"/>`
-                : "";
+              // Ponto ausente vira marca vazada na base, com rótulo. Deixar só
+              // o buraco faz parecer defeito de renderização; preencher com
+              // zero afirmaria um desempenho que não foi medido.
+              const ausentes = pts.map((p, i) => {
+                if (typeof p.valor === "number") return "";
+                return `<g class="gap">
+                    <line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}"
+                          y1="${PAD_Y}" y2="${H - PAD_Y}"
+                          stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4"/>
+                    <circle class="tp" cx="${x(i).toFixed(1)}" cy="${H - PAD_Y}" r="3.5"
+                            fill="none" stroke="var(--muted)" stroke-width="1.5"
+                            stroke-dasharray="2 2" tabindex="0" data-i="${i}"/>
+                  </g>`;
+              }).join("");
+
+              const linhaRef = (v, cor, titulo) =>
+                (typeof v === "number" && v >= min && v <= max)
+                  ? `<line x1="${PAD_X}" x2="${W - PAD_X}" y1="${y(v).toFixed(1)}"
+                           y2="${y(v).toFixed(1)}" stroke="${cor}"
+                           stroke-width="1" stroke-dasharray="4 4"><title>${esc(titulo)}</title></line>`
+                  : "";
+
+              // Duas referências com pesos diferentes: a sua média é a que se
+              // compara consigo mesmo; a da faixa diz se já está acima do
+              // esperado para o nível — por isso mais apagada, para não
+              // competir com a linha do próprio desempenho.
+              const media = linhaRef(serie.media, "var(--line)", "Sua média")
+                + linhaRef(serie.mediaDaFaixa, "rgba(139,127,168,.35)",
+                           "Média da faixa " + (serie.faixaLabel || ""));
 
               // Primeiro vs. último ponto medido: é a leitura que o jogador quer
               // ("estou melhorando?"), e ela respeita a direção da métrica.
@@ -211,34 +238,118 @@ final class HudComponents {
               const cls = neutro ? "dim" : (melhorou ? "up" : "down");
               const seta = neutro ? "—" : (delta > 0 ? "▲" : "▼");
 
+              // Âncoras de tempo. Só as pontas e o meio: uma data por ponto
+              // viraria uma fileira ilegível, e o que o cérebro precisa é da
+              // janela ("isso é de um mês ou de ontem?").
+              const dataCurta = p => p.playedAt
+                ? new Date(p.playedAt).toLocaleDateString("pt-BR", {day:"2-digit", month:"2-digit"})
+                : "";
+              const ultimo = pts.length - 1;
+              const meio = Math.floor(ultimo / 2);
+              const eixoX = [0, meio, ultimo]
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .map(i => {
+                  const ancora = i === 0 ? "start" : (i === ultimo ? "end" : "middle");
+                  const rotulo = i === ultimo ? "mais recente" : dataCurta(pts[i]);
+                  return `<text x="${x(i).toFixed(1)}" y="${H - 2}" text-anchor="${ancora}"
+                                class="eixo">${esc(rotulo)}</text>`;
+                }).join("");
+
+              const legendaFaixa = typeof serie.mediaDaFaixa === "number"
+                ? `<span class="dim">· faixa ${esc(serie.mediaDaFaixa.toFixed(1))}</span>`
+                : "";
+
               return `
-                <div class="trend">
+                <div class="trend" data-serie='${esc(JSON.stringify(pts))}'>
                   <div class="trend-head">
                     <span class="trend-label">${esc(serie.label)}</span>
                     <span class="${cls}"><span class="sig" aria-hidden="true">${seta}</span>${
                       esc((delta >= 0 ? "+" : "") + delta.toFixed(2))}</span>
                     <span class="dim">nas últimas ${pts.length} partidas</span>
                   </div>
-                  <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
-                       role="img" aria-label="Evolução de ${esc(serie.label)}">
-                    <defs>
-                      <linearGradient id="${id}s" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stop-color="#5B8DEF"/>
-                        <stop offset="100%" stop-color="var(--neon)"/>
-                      </linearGradient>
-                      <linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="rgba(176,38,255,.28)"/>
-                        <stop offset="100%" stop-color="rgba(176,38,255,0)"/>
-                      </linearGradient>
-                    </defs>
-                    ${media}${area}${linhas}${bolinhas}
-                  </svg>
+                  <div class="trend-plot">
+                    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+                         role="img" aria-label="Evolução de ${esc(serie.label)}">
+                      <defs>
+                        <linearGradient id="${id}s" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stop-color="#5B8DEF"/>
+                          <stop offset="100%" stop-color="var(--neon)"/>
+                        </linearGradient>
+                        <linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="rgba(176,38,255,.28)"/>
+                          <stop offset="100%" stop-color="rgba(176,38,255,0)"/>
+                        </linearGradient>
+                      </defs>
+                      ${media}${area}${linhas}${ausentes}${bolinhas}${eixoX}
+                    </svg>
+                    <div class="tip" hidden></div>
+                  </div>
                   <div class="trend-foot">
                     <span class="dim mono">${esc(min.toFixed(1))}</span>
-                    <span class="dim">média ${esc(typeof serie.media === "number" ? serie.media.toFixed(1) : "—")}</span>
+                    <span class="dim">sua média ${esc(typeof serie.media === "number" ? serie.media.toFixed(1) : "—")}
+                      ${legendaFaixa}</span>
                     <span class="dim mono">${esc(max.toFixed(1))}</span>
                   </div>
                 </div>`;
+            }
+
+            /**
+             * Liga o tooltip do gráfico depois de ele entrar no DOM.
+             *
+             * Um listener no container em vez de um por bolinha: são até
+             * cinquenta pontos, e delegar mantém um handler só. O balão é
+             * posicionado em % da largura, então acompanha o SVG que estica.
+             */
+            function ativarTooltip(container) {
+              const raiz = container.querySelector(".trend");
+              if (!raiz) return;
+
+              const plot = raiz.querySelector(".trend-plot");
+              const tip = raiz.querySelector(".tip");
+              const pts = JSON.parse(raiz.dataset.serie || "[]");
+
+              const mostrar = alvo => {
+                const p = pts[Number(alvo.dataset.i)];
+                if (!p) return;
+
+                const data = p.playedAt
+                  ? new Date(p.playedAt).toLocaleDateString("pt-BR",
+                      {day:"2-digit", month:"2-digit", year:"numeric"})
+                  : "";
+
+                let resultado = "";
+                if (p.won === true || p.won === false) {
+                  const placar = (p.scoreSelf != null && p.scoreEnemy != null)
+                    ? ` ${p.scoreSelf}-${p.scoreEnemy}` : "";
+                  resultado = `<span class="${p.won ? "up" : "down"}">${
+                    p.won ? "Vitória" : "Derrota"}${esc(placar)}</span>`;
+                }
+
+                const valor = typeof p.valor === "number"
+                  ? `<b>${esc(p.valor)}</b>`
+                  : `<span class="dim">não medido nesta partida</span>`;
+
+                tip.innerHTML = `${valor}<span class="dim">${esc(p.mapName || "")}</span>`
+                              + `${resultado}<span class="dim">${esc(data)}</span>`;
+
+                // A bolinha vive num viewBox de largura fixa; converter para %
+                // faz o balão seguir o SVG em qualquer largura de tela.
+                const cx = Number(alvo.getAttribute("cx"));
+                tip.style.left = (cx / 640 * 100) + "%";
+                tip.hidden = false;
+              };
+
+              const esconder = () => { tip.hidden = true; };
+
+              plot.addEventListener("pointerover", e => {
+                if (e.target.classList.contains("tp")) mostrar(e.target);
+              });
+              plot.addEventListener("pointerleave", esconder);
+              // Teclado: as bolinhas são focáveis, então o mesmo balão serve.
+              plot.addEventListener("focusin", e => {
+                if (e.target.classList.contains("tp")) mostrar(e.target);
+              });
+              plot.addEventListener("focusout", esconder);
             }
 
             // ═══════════════════════════════════════════════════════════

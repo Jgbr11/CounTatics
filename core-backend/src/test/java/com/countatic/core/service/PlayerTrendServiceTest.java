@@ -182,12 +182,79 @@ class PlayerTrendServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  Resultado da partida
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * O placar cru "13-8" não diz de quem é. Orientar pelo lado do jogador é o
+     * que transforma o número em "vitória por 13-8" ou "derrota por 8-13", e a
+     * interface não deveria precisar repetir essa conta.
+     */
+    @Test
+    @DisplayName("o placar chega orientado pelo lado do jogador")
+    void placarVemOrientadoPeloLado() {
+        Instant agora = Instant.now();
+        // Partida 13 (CT) x 8 (TR).
+        criarComLado(agora.minus(1, ChronoUnit.DAYS), 90.0, Team.CT, true);
+        criarComLado(agora, 90.0, Team.TR, false);
+
+        List<TrendSeriesDTO.Ponto> pontos = trendService.serie(STEAM_ID, "adr", 10).getPontos();
+
+        // Quem jogou de CT vê 13-8; quem jogou de TR vê o mesmo placar invertido.
+        assertThat(pontos.get(0).getScoreSelf()).isEqualTo(13);
+        assertThat(pontos.get(0).getScoreEnemy()).isEqualTo(8);
+        assertThat(pontos.get(0).getWon()).isTrue();
+
+        assertThat(pontos.get(1).getScoreSelf()).isEqualTo(8);
+        assertThat(pontos.get(1).getScoreEnemy()).isEqualTo(13);
+        assertThat(pontos.get(1).getWon()).isFalse();
+    }
+
+    /**
+     * Partidas analisadas antes de o resultado passar a ser guardado ficam com
+     * o lado nulo. Precisam viajar como "desconhecido" — inventar vitória seria
+     * pior do que não pintar a bolinha.
+     */
+    @Test
+    @DisplayName("sem lado registrado, resultado e placar vêm nulos em vez de inventados")
+    void semLadoResultadoEhDesconhecido() {
+        criarDesempenho(Instant.now(), 90.0);
+
+        TrendSeriesDTO.Ponto p = trendService.serie(STEAM_ID, "adr", 10).getPontos().get(0);
+
+        assertThat(p.getWon()).isNull();
+        assertThat(p.getScoreSelf()).isNull();
+        assertThat(p.getScoreEnemy()).isNull();
+    }
+
+    /** Com 3 partidas no banco não há as 30 amostras que o baseline exige. */
+    @Test
+    @DisplayName("sem amostra na faixa, a linha de referência da faixa não é enviada")
+    void mediaDaFaixaExigeAmostra() {
+        criarDesempenho(Instant.now(), 90.0);
+
+        TrendSeriesDTO serie = trendService.serie(STEAM_ID, "adr", 10);
+
+        assertThat(serie.getMediaDaFaixa()).isNull();
+        assertThat(serie.getFaixaLabel()).isNull();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
 
     private void criarDesempenho(Instant jogadaEm, Double adr) {
-        criarDesempenhoDe(STEAM_ID, jogadaEm, adr);
+        criarDesempenhoDe(STEAM_ID, jogadaEm, adr, null, null);
+    }
+
+    private void criarComLado(Instant jogadaEm, Double adr, Team lado, Boolean venceu) {
+        criarDesempenhoDe(STEAM_ID, jogadaEm, adr, lado, venceu);
     }
 
     private void criarDesempenhoDe(String steamId, Instant jogadaEm, Double adr) {
+        criarDesempenhoDe(steamId, jogadaEm, adr, null, null);
+    }
+
+    private void criarDesempenhoDe(String steamId, Instant jogadaEm, Double adr,
+                                   Team lado, Boolean venceu) {
         Match m = matchRepository.save(Match.builder()
                 .demoFileHash("hash-" + steamId + "-" + jogadaEm.toEpochMilli())
                 .demoFileName("t.dem")
@@ -210,6 +277,8 @@ class PlayerTrendServiceTest {
                 .roundsPlayed(21)
                 .adr(adr)
                 .deathsPerRound(0.7)
+                .playerSide(lado)
+                .won(venceu)
                 .build());
     }
 }

@@ -103,6 +103,34 @@ public class PlayerMatchStats {
     private Integer assists;
     private Integer totalDamage;
 
+    // ─── Resultado do jogador na partida ──────────────────────────────
+
+    /**
+     * Lado em que o jogador terminou a partida.
+     *
+     * <p>Persistido porque só os <b>eventos</b> revelam de que lado alguém
+     * jogou, e carregá-los é justamente o custo que esta tabela existe para
+     * evitar. Sem esta coluna, o gráfico de evolução teria de abrir os eventos
+     * de dez partidas para pintar dez bolinhas.</p>
+     *
+     * <p>Nulo em partidas analisadas antes desta coluna existir, e em rounds
+     * sem nenhum evento que identifique o lado do jogador.</p>
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 2)
+    private Team playerSide;
+
+    /**
+     * Se o time do jogador venceu.
+     *
+     * <p>Guardado junto com o lado em vez de derivado do placar na leitura:
+     * derivar exigiria o lado <i>e</i> o placar em toda consulta, e o campo
+     * responde à pergunta que a interface faz ("ganhou?") sem recalcular.</p>
+     *
+     * <p>Nulo quando o lado não pôde ser determinado ou o placar empatou.</p>
+     */
+    private Boolean won;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

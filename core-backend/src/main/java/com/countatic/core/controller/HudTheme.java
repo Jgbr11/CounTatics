@@ -372,9 +372,39 @@ final class HudTheme {
                acompanha a coluna sem recalcular nada em JS.
                ─────────────────────────────────────────────────────────── */
             .trend{margin-top:.4rem}
-            .trend svg{width:100%;height:150px;display:block;overflow:visible}
+            .trend-plot{position:relative}
+            .trend svg{width:100%;height:170px;display:block;overflow:visible}
             .trend-head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;
                         margin-bottom:.3rem;font-size:.85rem}
+
+            /* Rótulos do eixo X. font-size em px porque o viewBox tem escala
+               própria: em rem eles cresceriam junto com o estica do SVG. */
+            .trend .eixo{fill:var(--muted);font-family:var(--f-mono);font-size:11px}
+
+            /* Ponto do gráfico. O raio cresce no hover/foco para o alvo ficar
+               maior que o desenho — 4px de raio é pouco para o dedo. */
+            .trend .tp{cursor:pointer;transition:r .12s}
+            .trend .tp:hover,.trend .tp:focus-visible{r:7}
+            .trend .gap line{pointer-events:none}
+
+            /* Tooltip. Posicionado em % pelo JS e centrado por translate, então
+               acompanha o SVG em qualquer largura. */
+            .tip{
+              position:absolute;
+              bottom:calc(100% - 12px);
+              transform:translateX(-50%);
+              display:flex;flex-direction:column;gap:.15rem;
+              min-width:9rem;
+              padding:.5rem .65rem;
+              background:var(--panel-1);
+              border:1px solid var(--neon-dim);
+              box-shadow:0 0 18px rgba(0,0,0,.6);
+              font-size:.78rem;line-height:1.35;
+              pointer-events:none;
+              z-index:4;
+            }
+            .tip b{font-family:var(--f-display);font-size:1.05rem}
+            .tip[hidden]{display:none}
             .trend-label{font-family:var(--f-body);font-weight:600;
                          letter-spacing:.1em;text-transform:uppercase;font-size:.72rem}
             .trend-foot{display:flex;justify-content:space-between;

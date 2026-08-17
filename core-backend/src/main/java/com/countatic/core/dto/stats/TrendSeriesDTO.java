@@ -45,6 +45,20 @@ public class TrendSeriesDTO {
     /** Média da própria série, para a linha de referência do gráfico. */
     private Double media;
 
+    /**
+     * Média da faixa de rank do jogador, quando há amostra suficiente.
+     *
+     * <p>É a segunda referência do gráfico: a média própria diz se ele está
+     * melhorando em relação a si mesmo; esta diz se já está acima do esperado
+     * para o nível. Vem {@code null} enquanto a faixa não tiver o mínimo de
+     * amostras — um número calculado sobre cinco partidas pareceria preciso
+     * sem ser.</p>
+     */
+    private Double mediaDaFaixa;
+
+    /** Rótulo da faixa usada em {@link #mediaDaFaixa}, ex: "Azul (10.000–14.999)". */
+    private String faixaLabel;
+
     private List<Ponto> pontos;
 
     @Data
@@ -57,6 +71,19 @@ public class TrendSeriesDTO {
 
         /** Quando a partida foi <b>jogada</b> — não quando foi analisada. */
         private Instant playedAt;
+
+        /**
+         * Se o time do jogador venceu. {@code null} quando desconhecido —
+         * partida analisada antes de o resultado passar a ser guardado, ou
+         * empate.
+         */
+        private Boolean won;
+
+        /** Rounds do lado do jogador, já orientado — não é o placar CT/TR cru. */
+        private Integer scoreSelf;
+
+        /** Rounds do adversário. */
+        private Integer scoreEnemy;
 
         /**
          * Valor da métrica naquela partida.

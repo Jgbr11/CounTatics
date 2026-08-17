@@ -183,6 +183,39 @@ public class BaselineService {
                 : Optional.of(new MetricaDescricao(chave, info.rotulo(), info.maiorEhMelhor()));
     }
 
+    /**
+     * Média de uma métrica na faixa, ou {@code null} sem amostra suficiente.
+     *
+     * <p>Serve de linha de referência para o gráfico de evolução. Aplica a
+     * <b>mesma guarda de amostra mínima</b> da comparação por percentil: uma
+     * média sobre cinco partidas desenharia uma referência que parece
+     * autoridade e não é.</p>
+     *
+     * <p>Devolve {@code null} — e não zero — quando não há amostra, pela mesma
+     * razão que as métricas ausentes: zero seria lido como "a faixa tem média
+     * zero".</p>
+     */
+    @Transactional(readOnly = true)
+    public Double mediaDaFaixa(RankTier faixa, String chave) {
+        MetricaInfo info = METRICAS.get(chave);
+        if (faixa == null || info == null) {
+            return null;
+        }
+
+        // Coluna vinda exclusivamente da whitelist, nunca do usuário.
+        String sql = String.format("""
+                SELECT COUNT(*) AS n, AVG(%1$s) AS media
+                FROM player_match_stats
+                WHERE rank_tier = :tier AND %1$s IS NOT NULL
+                """, info.coluna());
+
+        Object[] linha = (Object[]) em.createNativeQuery(sql)
+                .setParameter("tier", faixa.name())
+                .getSingleResult();
+
+        return toLong(linha[0]) < amostraMinima ? null : round2(toDouble(linha[1]));
+    }
+
     // ═══════════════════════════════════════════════════════════════════
 
     private Comparacao compararMetrica(RankTier faixa, MetricaInfo info, String chave, double valor) {
