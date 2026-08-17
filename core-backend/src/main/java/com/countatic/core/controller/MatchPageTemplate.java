@@ -36,13 +36,6 @@ final class MatchPageTemplate {
                    text-transform:uppercase;color:var(--neon);margin-bottom:.55rem}
             .brand span{color:var(--muted)}
 
-            .meta{display:flex;flex-wrap:wrap;gap:.4rem .55rem;margin-top:.85rem}
-            .meta .tag{font-family:var(--f-mono);font-size:.74rem;
-                       letter-spacing:.06em;color:var(--muted);
-                       background:var(--tint);border:1px solid var(--line);
-                       padding:.2rem .55rem}
-            .meta .tag b{color:var(--text);font-weight:400}
-
             /* ─── PLACAR ──────────────────────────────────────────────── */
             .score{display:flex;align-items:center;gap:.9rem;margin-top:1rem}
             .score .side{text-align:center}

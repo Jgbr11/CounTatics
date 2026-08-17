@@ -87,6 +87,19 @@ public class Player {
     private Instant lastPolledAt;
 
     /**
+     * Token público e não-adivinhável usado na URL do painel do jogador
+     * ({@code /p/{publicToken}}).
+     *
+     * <p>Existe pela mesma razão do {@code Match.publicToken}: a página não tem
+     * autenticação. Usar o SteamID64 na URL seria pior do que usar um id
+     * sequencial — o SteamID64 é <b>público</b>, aparece no perfil da Steam,
+     * então qualquer pessoa que soubesse o de alguém veria o histórico
+     * completo dele.</p>
+     */
+    @Column(unique = true, length = 36)
+    private String publicToken;
+
+    /**
      * Timestamp da primeira vez que este jogador foi registrado no sistema.
      */
     @Column(nullable = false, updatable = false)
@@ -110,6 +123,9 @@ public class Player {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.publicToken == null) {
+            this.publicToken = java.util.UUID.randomUUID().toString();
+        }
     }
 
     @PreUpdate

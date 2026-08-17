@@ -52,6 +52,18 @@ public class PlayerTrendService {
      */
     private static final Map<String, Function<PlayerMatchStats, Double>> LEITORES = new LinkedHashMap<>();
 
+    /**
+     * Como ler cada métrica comparável de uma linha de desempenho.
+     *
+     * <p>Exposto para o painel do jogador consumir o mesmo mapeamento. Duplicá-lo
+     * lá significaria dois lugares para atualizar quando uma métrica entrasse
+     * na whitelist do {@link BaselineService} — e o que ficasse para trás
+     * falharia em silêncio, devolvendo média vazia.</p>
+     */
+    public static Map<String, Function<PlayerMatchStats, Double>> leitores() {
+        return Map.copyOf(LEITORES);
+    }
+
     static {
         LEITORES.put("adr", PlayerMatchStats::getAdr);
         LEITORES.put("kdRatio", PlayerMatchStats::getKdRatio);

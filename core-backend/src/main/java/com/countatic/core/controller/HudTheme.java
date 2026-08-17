@@ -185,6 +185,15 @@ final class HudTheme {
                    letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
             .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 
+            /* Tags de metadado do cabeçalho. Usadas pela página da partida e
+               pelo painel do jogador — por isso vivem aqui e não numa delas. */
+            .meta{display:flex;flex-wrap:wrap;gap:.4rem .55rem;margin-top:.85rem}
+            .meta .tag{font-family:var(--f-mono);font-size:.74rem;
+                       letter-spacing:.06em;color:var(--muted);
+                       background:var(--tint);border:1px solid var(--line);
+                       padding:.2rem .55rem}
+            .meta .tag b{color:var(--text);font-weight:400}
+
             /* ───────────────────────────────────────────────────────────
                GEOMETRIA — canto cortado
                O clip-path corta a borda junto com o fundo, então um único

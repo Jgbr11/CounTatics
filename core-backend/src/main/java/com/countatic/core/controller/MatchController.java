@@ -9,7 +9,9 @@ import com.countatic.core.service.MatchAnalysisService;
 import com.countatic.core.service.MatchFetchJobService;
 import com.countatic.core.service.MatchQueryService;
 import com.countatic.core.service.MatchReprocessService;
+import com.countatic.core.service.PlayerDashboardService;
 import com.countatic.core.service.PlayerTrendService;
+import com.countatic.core.repository.PlayerRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,19 +36,25 @@ public class MatchController {
     private final MatchAnalysisService matchAnalysisService;
     private final MatchReprocessService matchReprocessService;
     private final PlayerTrendService trendService;
+    private final PlayerDashboardService dashboardService;
+    private final PlayerRepository playerRepository;
 
     public MatchController(MatchQueryService matchQueryService,
                            MatchFetchJobService jobService,
                            DemoParserClientService demoParserClientService,
                            MatchAnalysisService matchAnalysisService,
                            MatchReprocessService matchReprocessService,
-                           PlayerTrendService trendService) {
+                           PlayerTrendService trendService,
+                           PlayerDashboardService dashboardService,
+                           PlayerRepository playerRepository) {
         this.matchQueryService = matchQueryService;
         this.jobService = jobService;
         this.demoParserClientService = demoParserClientService;
         this.matchAnalysisService = matchAnalysisService;
         this.matchReprocessService = matchReprocessService;
         this.trendService = trendService;
+        this.dashboardService = dashboardService;
+        this.playerRepository = playerRepository;
     }
 
     /** Lista as partidas analisadas, mais recentes primeiro. */
@@ -185,6 +193,30 @@ public class MatchController {
                     "metricasValidas", BaselineService.metricasSuportadas()
             ));
         }
+    }
+
+    /**
+     * Painel consolidado do jogador, em JSON.
+     *
+     * <p>Aceita SteamID64 porque é a API — quem chama já conhece o jogador. A
+     * <b>página</b> equivalente ({@code /p/{token}}) usa o token público, que é
+     * o que impede alguém de ver o histórico de outro sabendo só o SteamID.</p>
+     *
+     * <p>A resposta inclui {@code painelUrl}: sem ela não haveria como
+     * descobrir o token, que é aleatório por construção.</p>
+     */
+    @GetMapping("/players/{steamId}/painel")
+    public ResponseEntity<?> painel(@PathVariable("steamId") String steamId,
+                                    @RequestParam(name = "partidas",
+                                            defaultValue = "" + PlayerDashboardService.PARTIDAS_PADRAO)
+                                    int partidas) {
+        return playerRepository.findBySteamId64(steamId)
+                .map(jogador -> dashboardService.porSteamId(steamId, partidas)
+                        .<ResponseEntity<?>>map(painel -> ResponseEntity.ok(Map.of(
+                                "painelUrl", "/p/" + jogador.getPublicToken(),
+                                "painel", painel)))
+                        .orElseGet(() -> ResponseEntity.notFound().build()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /**

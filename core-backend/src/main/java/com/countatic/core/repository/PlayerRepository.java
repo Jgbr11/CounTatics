@@ -20,6 +20,12 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
      */
     Optional<Player> findBySteamId64(String steamId64);
 
+    /** Busca pelo token da URL do painel — ver {@code Player.publicToken}. */
+    Optional<Player> findByPublicToken(String publicToken);
+
+    /** Jogadores cadastrados antes de o token existir. Ver {@code PlayerTokenBackfill}. */
+    java.util.List<Player> findByPublicTokenIsNull();
+
     /**
      * Verifica se já existe um jogador com o SteamID64 informado.
      *
