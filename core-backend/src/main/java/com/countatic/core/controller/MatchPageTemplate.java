@@ -163,6 +163,13 @@ final class MatchPageTemplate {
               <section class="panel cut">
                 <div class="cut-in">
                   <div class="panel-head"><h2 id="detailTitle">Métricas</h2></div>
+                  <p class="hint" style="margin:-.5rem 0 1rem">
+                    A cor do número compara com a <b>média desta partida</b>:
+                    <span class="up">▲ acima</span> ·
+                    <span class="dim">— na média</span> ·
+                    <span class="down">▼ abaixo</span>.
+                    Contadores sem juízo de valor ficam neutros.
+                  </p>
                   <div id="detail" aria-live="polite"></div>
                 </div>
               </section>
@@ -182,60 +189,129 @@ final class MatchPageTemplate {
 
             const DATA = __MATCH_DATA__;
 
-            // Rótulos legíveis para as chaves cruas emitidas pelas strategies.
-            const LABELS = {
-              headshotPercentage:  ["Headshot %",            v => v.toFixed(1) + "%"],
-              killsPerRound:       ["Kills / round",          v => v.toFixed(2)],
-              deathsPerRound:      ["Mortes / round",         v => v.toFixed(2)],
-              kdRatio:             ["K/D",                    v => v.toFixed(2)],
-              crosshairPlacementScore: ["Crosshair placement", v => v.toFixed(1) + "%"],
-              medianCrosshairErrorDegrees: ["Erro de mira (mediana)", v => v.toFixed(1) + "°"],
-              evaluatedShots:      ["Disparos avaliados",     v => v.toFixed(0)],
-              totalKills:          ["Kills",                  v => v.toFixed(0)],
-              totalDeaths:         ["Mortes",                 v => v.toFixed(0)],
-              totalHeadshotKills:  ["Kills de HS",            v => v.toFixed(0)],
-              flashEfficiency:     ["Eficiência de flash",    v => v.toFixed(1) + "%"],
-              teamFlashRate:       ["Flash em aliado",        v => v.toFixed(1) + "%"],
-              avgEnemyFlashDuration: ["Cegueira média",       v => v.toFixed(2) + "s"],
-              enemyBlindsPerFlash: ["Inimigos por flash",     v => v.toFixed(2)],
-              totalFlashesThrown:  ["Flashes lançadas",       v => v.toFixed(0)],
-              totalEnemyBlinds:    ["Inimigos cegados",       v => v.toFixed(0)],
-              totalTeamBlinds:     ["Aliados cegados",        v => v.toFixed(0)],
-              flashesPerRound:     ["Flashes / round",        v => v.toFixed(2)],
-              totalUtilityDamage:  ["Dano de utilitária",     v => v.toFixed(0)],
-              utilityDamagePerRound: ["Dano util. / round",   v => v.toFixed(1)],
-              totalSmokesThrown:   ["Smokes",                 v => v.toFixed(0)],
-              smokesPerRound:      ["Smokes / round",         v => v.toFixed(2)],
-              totalHEThrown:       ["HEs",                    v => v.toFixed(0)],
-              totalMolotovThrown:  ["Molotovs",               v => v.toFixed(0)],
+            /**
+             * Configuração por métrica.
+             *
+             *   rotulo    — nome legível (as chaves vêm cruas das strategies)
+             *   fmt       — formatador do valor
+             *   dir       — direção do "melhor": "maior" (padrão), "menor" ou
+             *               "neutro". Sem isso, comparar com a média da partida
+             *               pintaria de verde quem MAIS morreu por round.
+             *   icone     — família visual; ver ICONS em HudComponents
+             *   principal — recebe destaque de tamanho e glow
+             *   ajuda     — tooltip para métrica cujo cálculo não é óbvio
+             *
+             * A direção duplica a flag `maiorEhMelhor` do BaselineService para
+             * as 10 métricas que ele cobre. É deliberado: a comparação aqui é
+             * client-side e as outras ~20 métricas não estão naquela whitelist.
+             * Se um dia um limiar mudar lá, este mapa precisa acompanhar.
+             */
+            const METRICAS = {
+              // ─── Aim ───────────────────────────────────────────────
+              kdRatio:             {rotulo:"K/D", fmt:v=>v.toFixed(2), icone:"mira", principal:true},
+              headshotPercentage:  {rotulo:"Headshot %", fmt:v=>v.toFixed(1)+"%", icone:"mira",
+                                    ajuda:"Proporção das suas kills que foram na cabeça. Só existe se você matou alguém."},
+              killsPerRound:       {rotulo:"Kills / round", fmt:v=>v.toFixed(2), icone:"mira"},
+              deathsPerRound:      {rotulo:"Mortes / round", fmt:v=>v.toFixed(2), icone:"morte", dir:"menor"},
+              crosshairPlacementScore: {rotulo:"Crosshair placement", fmt:v=>v.toFixed(1)+"%", icone:"mira",
+                                    ajuda:"Percentual de disparos em que a mira já estava a menos de 5° da cabeça do inimigo. Quanto maior, menos ajuste o duelo exige."},
+              medianCrosshairErrorDegrees: {rotulo:"Erro de mira (mediana)", fmt:v=>v.toFixed(1)+"°", icone:"mira", dir:"menor",
+                                    ajuda:"Ângulo mediano entre a sua mira e a cabeça do inimigo no instante do disparo. Menor é melhor."},
+              evaluatedShots:      {rotulo:"Disparos avaliados", fmt:v=>v.toFixed(0), icone:"mira", dir:"neutro",
+                                    ajuda:"Quantos disparos tinham um inimigo no cone frontal e puderam entrar no cálculo de mira."},
+              totalKills:          {rotulo:"Kills", fmt:v=>v.toFixed(0), icone:"mira"},
+              totalDeaths:         {rotulo:"Mortes", fmt:v=>v.toFixed(0), icone:"morte", dir:"menor"},
+              totalHeadshotKills:  {rotulo:"Kills de HS", fmt:v=>v.toFixed(0), icone:"mira"},
 
-              // Impacto
-              adr:                 ["ADR",                    v => v.toFixed(1)],
-              totalDamage:         ["Dano total",             v => v.toFixed(0)],
-              tradeKills:          ["Trade kills",            v => v.toFixed(0)],
-              tradedDeaths:        ["Mortes vingadas",        v => v.toFixed(0)],
-              openingDuels:        ["Primeiros duelos",       v => v.toFixed(0)],
-              openingDuelsWon:     ["Primeiros duelos ganhos", v => v.toFixed(0)],
-              openingDuelWinRate:  ["Taxa 1º duelo",          v => v.toFixed(1) + "%"],
-              clutchesWon:         ["Clutches ganhos",        v => v.toFixed(0)],
-              clutchesAttempted:   ["Clutches tentados",      v => v.toFixed(0)],
-              clutchWinRate:       ["Taxa de clutch",         v => v.toFixed(1) + "%"],
+              // ─── Utility ───────────────────────────────────────────
+              flashEfficiency:     {rotulo:"Eficiência de flash", fmt:v=>v.toFixed(1)+"%", icone:"granada", principal:true,
+                                    ajuda:"Percentual das suas flashes que cegaram ao menos um inimigo. Cada flash conta no máximo uma vez."},
+              teamFlashRate:       {rotulo:"Flash em aliado", fmt:v=>v.toFixed(1)+"%", icone:"granada", dir:"menor"},
+              avgEnemyFlashDuration: {rotulo:"Cegueira média", fmt:v=>v.toFixed(2)+"s", icone:"granada"},
+              enemyBlindsPerFlash: {rotulo:"Inimigos por flash", fmt:v=>v.toFixed(2), icone:"granada",
+                                    ajuda:"Quantos inimigos cada flash cega, em média. Diferente da eficiência, passa de 1 legitimamente."},
+              totalFlashesThrown:  {rotulo:"Flashes lançadas", fmt:v=>v.toFixed(0), icone:"granada", dir:"neutro"},
+              totalEnemyBlinds:    {rotulo:"Inimigos cegados", fmt:v=>v.toFixed(0), icone:"granada"},
+              totalTeamBlinds:     {rotulo:"Aliados cegados", fmt:v=>v.toFixed(0), icone:"granada", dir:"menor"},
+              flashesPerRound:     {rotulo:"Flashes / round", fmt:v=>v.toFixed(2), icone:"granada", dir:"neutro"},
+              totalUtilityDamage:  {rotulo:"Dano de utilitária", fmt:v=>v.toFixed(0), icone:"dano"},
+              utilityDamagePerRound: {rotulo:"Dano util. / round", fmt:v=>v.toFixed(1), icone:"dano"},
+              totalSmokesThrown:   {rotulo:"Smokes", fmt:v=>v.toFixed(0), icone:"fumaca", dir:"neutro"},
+              smokesPerRound:      {rotulo:"Smokes / round", fmt:v=>v.toFixed(2), icone:"fumaca", dir:"neutro"},
+              totalHEThrown:       {rotulo:"HEs", fmt:v=>v.toFixed(0), icone:"granada", dir:"neutro"},
+              totalMolotovThrown:  {rotulo:"Molotovs", fmt:v=>v.toFixed(0), icone:"granada", dir:"neutro"},
+
+              // ─── Impacto ───────────────────────────────────────────
+              adr:                 {rotulo:"ADR", fmt:v=>v.toFixed(1), icone:"dano", principal:true,
+                                    ajuda:"Dano médio por round. Captura a contribuição de quem abre o duelo sem finalizar."},
+              totalDamage:         {rotulo:"Dano total", fmt:v=>v.toFixed(0), icone:"dano"},
+              tradeKills:          {rotulo:"Trade kills", fmt:v=>v.toFixed(0), icone:"duelo",
+                                    ajuda:"Vezes que você matou quem tinha acabado de matar um aliado, em até 5 s."},
+              tradedDeaths:        {rotulo:"Mortes vingadas", fmt:v=>v.toFixed(0), icone:"duelo",
+                                    ajuda:"Vezes que um aliado matou o seu algoz logo depois. Morrer sendo trocado custa menos ao round."},
+              openingDuels:        {rotulo:"Primeiros duelos", fmt:v=>v.toFixed(0), icone:"duelo", dir:"neutro"},
+              openingDuelsWon:     {rotulo:"Primeiros duelos ganhos", fmt:v=>v.toFixed(0), icone:"duelo"},
+              openingDuelWinRate:  {rotulo:"Taxa 1º duelo", fmt:v=>v.toFixed(1)+"%", icone:"duelo",
+                                    ajuda:"Quantos dos primeiros duelos do round você venceu. É o duelo de maior impacto no resultado."},
+              clutchesWon:         {rotulo:"Clutches ganhos", fmt:v=>v.toFixed(0), icone:"relogio"},
+              clutchesAttempted:   {rotulo:"Clutches tentados", fmt:v=>v.toFixed(0), icone:"relogio", dir:"neutro"},
+              clutchWinRate:       {rotulo:"Taxa de clutch", fmt:v=>v.toFixed(1)+"%", icone:"relogio"},
             };
 
-            const fmt = (k, v) => {
-              const e = LABELS[k];
-              if (!e) return [k, Number.isInteger(v) ? String(v) : v.toFixed(2)];
-              return [e[0], e[1](v)];
-            };
+            const cfg = k => METRICAS[k] || {rotulo:k, fmt:v=>Number.isInteger(v)?String(v):v.toFixed(2), dir:"neutro"};
+
+            /**
+             * Média de cada métrica entre os jogadores da partida.
+             *
+             * Escolhemos a média da PARTIDA, e não o baseline da faixa de rank,
+             * porque ela existe sempre: vale para os dez jogadores e para todas
+             * as ~30 métricas, sem depender das 30 amostras históricas que o
+             * BaselineService exige. É uma referência mais fraca, mas presente.
+             *
+             * Só entram no denominador os jogadores que TÊM a chave — uma
+             * métrica ausente (ver a regra de "zero medido vs. ausência") não
+             * pode virar zero aqui e puxar a média para baixo.
+             */
+            function mediasDaPartida(players) {
+              const soma = {}, n = {};
+              for (const p of players || []) {
+                for (const cat of Object.values(p.metrics || {})) {
+                  for (const [k, v] of Object.entries(cat)) {
+                    if (typeof v !== "number") continue;
+                    soma[k] = (soma[k] || 0) + v;
+                    n[k] = (n[k] || 0) + 1;
+                  }
+                }
+              }
+              const media = {};
+              // Com um único jogador não há com quem comparar: sem média, o
+              // card sai neutro em vez de fingir um veredito.
+              for (const k of Object.keys(soma)) if (n[k] > 1) media[k] = soma[k] / n[k];
+              return media;
+            }
+
+            /** Largura da faixa considerada "na média", relativa ao próprio valor médio. */
+            const ZONA_MORTA = 0.05;
+
+            function statusDaMetrica(chave, valor, media) {
+              const dir = cfg(chave).dir || "maior";
+              if (dir === "neutro" || media === undefined || !isFinite(media)) return "neutro";
+
+              // Diferença relativa: 5% de 100 de ADR é outra coisa que 5% de
+              // 0.9 de K/D, e um limiar absoluto trataria os dois igual.
+              const escala = Math.abs(media) || 1;
+              const delta = (valor - media) / escala;
+              if (Math.abs(delta) <= ZONA_MORTA) return "neutro";
+
+              const acima = delta > 0;
+              return (dir === "menor" ? !acima : acima) ? "acima" : "abaixo";
+            }
+
+            /** Calculada uma vez: a média não muda ao trocar de jogador selecionado. */
+            const MEDIAS = mediasDaPartida(DATA.players);
 
             const el = id => document.getElementById(id);
             const txt = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
-
-            /** Chip de métrica: duas camadas, porque o chanfro corta a borda junto com o fundo. */
-            const chip = (label, value) =>
-              `<div class="chip cut"><div class="cut-in">` +
-              `<div class="k">${txt(label)}</div><div class="v">${txt(value)}</div>` +
-              `</div></div>`;
 
             /**
              * Comparação com jogadores da mesma faixa de CS Rating.
@@ -388,9 +464,22 @@ final class MatchPageTemplate {
 
               for (const cat of cats) {
                 html += `<div class="cat"><h3>${txt(cat)}</h3><div class="chips">`;
-                for (const [k, v] of Object.entries(p.metrics[cat])) {
-                  const [label, val] = fmt(k, v);
-                  html += chip(label, val);
+
+                // As principais primeiro: elas ocupam duas colunas, e deixá-las
+                // na ordem crua abriria buracos na grade.
+                const entradas = Object.entries(p.metrics[cat])
+                  .sort((a, b) => (cfg(b[0]).principal ? 1 : 0) - (cfg(a[0]).principal ? 1 : 0));
+
+                for (const [k, v] of entradas) {
+                  const c = cfg(k);
+                  html += MetricCard({
+                    label: c.rotulo,
+                    valor: c.fmt(v),
+                    icone: c.icone,
+                    status: statusDaMetrica(k, v, MEDIAS[k]),
+                    principal: c.principal,
+                    ajuda: c.ajuda,
+                  });
                 }
                 html += `</div></div>`;
               }

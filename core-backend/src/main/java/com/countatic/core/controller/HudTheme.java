@@ -220,20 +220,63 @@ final class HudTheme {
             .panel-head::after{content:"";flex:1;height:1px;background:var(--line)}
 
             /* ───────────────────────────────────────────────────────────
-               CHIP DE MÉTRICA
-               Número grande em Orbitron com glow; label pequena e apagada.
-               O glow vive aqui e no badge — em mais nenhum lugar.
+               METRIC CARD
+               O fundo é quase transparente de propósito. A versão anterior
+               preenchia cada card com roxo, e vinte cards preenchidos lado a
+               lado viravam uma parede: o olho não achava onde pousar. Aqui o
+               peso visual está no NÚMERO, não na caixa — a caixa é só a linha
+               de 1px que delimita.
                ─────────────────────────────────────────────────────────── */
             .chips{display:grid;gap:.7rem;
                    grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
-            .chip{background:var(--line);padding:1px}
-            .chip > .cut-in{background:var(--tint);padding:.75rem .85rem}
-            .chip .k{font-size:.68rem;font-weight:600;letter-spacing:.13em;
+
+            .chip{--st:var(--text);--st-glow:rgba(232,227,245,.35);
+                  background:var(--line);padding:1px}
+            .chip > .cut-in{background:rgba(255,255,255,.02);padding:.75rem .85rem}
+
+            .chip .k{display:flex;align-items:center;gap:.4rem;
+                     font-size:.66rem;font-weight:600;letter-spacing:.13em;
                      text-transform:uppercase;color:var(--muted);
-                     margin-bottom:.35rem;line-height:1.3}
+                     margin-bottom:.4rem;line-height:1.3}
+            .chip .k .ico{flex:0 0 auto;opacity:.75}
+
+            /* A cor do valor É o status. O glow acompanha a mesma variável,
+               senão um número vermelho ganharia halo roxo. */
             .chip .v{font-family:var(--f-display);font-weight:700;font-size:1.45rem;
-                     letter-spacing:.02em;color:var(--text);
-                     text-shadow:0 0 14px rgba(176,38,255,.45)}
+                     letter-spacing:.02em;color:var(--st)}
+            .chip.is-acima  {--st:var(--good);--st-glow:rgba(43,224,138,.45)}
+            .chip.is-abaixo {--st:var(--bad); --st-glow:rgba(255,77,106,.45)}
+
+            /* ─── Hierarquia ───────────────────────────────────────────
+               Nem toda métrica pesa igual. K/D e ADR decidem a leitura da
+               partida; "disparos avaliados" é diagnóstico. Dar o mesmo
+               tamanho aos dois obriga o jogador a filtrar no olho. O card
+               principal ocupa duas colunas, cresce a tipografia e é o único
+               que recebe glow — que é o que sobrou de destaque depois de o
+               fundo virar transparente. */
+            .chip.is-principal{grid-column:span 2}
+            .chip.is-principal > .cut-in{padding:.95rem 1.05rem}
+            .chip.is-principal .v{font-size:2.1rem;font-weight:900;
+                                  text-shadow:0 0 18px var(--st-glow)}
+            .chip.is-principal .k{font-size:.7rem}
+
+            /* Numa coluna só, "span 2" estouraria a grade. */
+            @media (max-width:420px){
+              .chip.is-principal{grid-column:span 1}
+              .chip.is-principal .v{font-size:1.7rem}
+            }
+
+            /* ─── Tooltip ──────────────────────────────────────────────
+               Métrica com explicação ganha uma marca discreta e usa o
+               title nativo: sem JS de posicionamento, e funciona por
+               teclado e leitor de tela sem trabalho extra. */
+            .chip .k[title]{cursor:help}
+            .chip .k[title]::after{content:"?";margin-left:auto;
+                                   font-size:.62rem;opacity:.5;
+                                   border:1px solid currentColor;border-radius:50%;
+                                   width:1.1em;height:1.1em;line-height:1;
+                                   display:inline-flex;align-items:center;
+                                   justify-content:center;flex:0 0 auto}
 
             /* ───────────────────────────────────────────────────────────
                BADGE DE RANK

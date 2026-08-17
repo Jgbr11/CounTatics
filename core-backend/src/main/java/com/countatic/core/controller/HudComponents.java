@@ -52,6 +52,17 @@ final class HudComponents {
               aviso:   '<path d="M12 2 1 21h22L12 2zm0 6v7m0 3v.5"/>',
               sucesso: '<path d="M20 6 9 17l-5-5"/>',
               info:    '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4v.5"/>',
+
+              // Famílias de métrica. Poucos e genéricos de propósito: um ícone
+              // por métrica daria trinta desenhos para manter, e o ganho de
+              // leitura vem de agrupar visualmente, não de ilustrar cada uma.
+              mira:    '<circle cx="12" cy="12" r="8"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>',
+              morte:   '<path d="M9 21h6v-2H9zM12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
+              dano:    '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+              granada: '<path d="M12 22a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM12 8V5m-2-3h4"/>',
+              fumaca:  '<path d="M5 17h13a3 3 0 0 0 0-6 5 5 0 0 0-9.6-1.6A3.5 3.5 0 0 0 5 17z"/>',
+              duelo:   '<path d="m4 4 8 8m8-8-8 8m0 0-8 8m8-8 8 8"/>',
+              relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
             };
 
             /** Envelope do SVG. `stroke` em currentColor mantém a cor no controle do CSS. */
@@ -60,6 +71,50 @@ final class HudComponents {
                     viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                     aria-hidden="true">${ICONS[nome] || ""}</svg>`;
+
+            // ═══════════════════════════════════════════════════════════
+            //  MetricCard
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Card de uma métrica.
+             *
+             *   { label, valor, icone, status, principal, ajuda }
+             *
+             * `status` é 'acima' | 'abaixo' | 'neutro' e colore o NÚMERO, não a
+             * caixa: o fundo é quase transparente justamente para o número ser
+             * o único elemento com peso. `principal` dobra a largura e o
+             * tamanho da fonte — é o que separa K/D de "disparos avaliados",
+             * que antes tinham exatamente o mesmo peso visual.
+             *
+             * A marcação é de duas camadas porque o chanfro recorta a borda
+             * junto com o fundo; sem a camada externa, a diagonal fica sem
+             * linha.
+             */
+            function MetricCard({ label, valor, icone, status, principal, ajuda }) {
+              const classes = ["chip", "cut"];
+              if (status === "acima")  classes.push("is-acima");
+              if (status === "abaixo") classes.push("is-abaixo");
+              if (principal)           classes.push("is-principal");
+
+              // O title nativo dá tooltip por mouse, teclado e leitor de tela
+              // sem uma linha de JS de posicionamento.
+              const attrAjuda = ajuda ? ` title="${esc(ajuda)}"` : "";
+
+              // A seta acompanha a cor em vez de substituí-la. Verde e vermelho
+              // é o par que o daltonismo mais comum não separa, então a forma é
+              // o que garante a leitura — e continua legível em monitor mal
+              // calibrado ou sob sol.
+              const seta = status === "acima" ? "▲" : (status === "abaixo" ? "▼" : "");
+              const sig = seta ? `<span class="sig" aria-hidden="true">${seta}</span>` : "";
+
+              return `<div class="${classes.join(" ")}">
+                  <div class="cut-in">
+                    <div class="k"${attrAjuda}>${icone ? icon(icone, 13) : ""}<span>${esc(label)}</span></div>
+                    <div class="v">${sig}${esc(valor)}</div>
+                  </div>
+                </div>`;
+            }
 
             // ═══════════════════════════════════════════════════════════
             //  CoachPanel
