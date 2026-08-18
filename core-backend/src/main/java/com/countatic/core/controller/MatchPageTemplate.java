@@ -263,6 +263,25 @@ final class MatchPageTemplate {
               clutchesWon:         {rotulo:"Clutches ganhos", fmt:v=>v.toFixed(0), icone:"relogio"},
               clutchesAttempted:   {rotulo:"Clutches tentados", fmt:v=>v.toFixed(0), icone:"relogio", dir:"neutro"},
               clutchWinRate:       {rotulo:"Taxa de clutch", fmt:v=>v.toFixed(1)+"%", icone:"relogio"},
+
+              // ─── Posicionamento ────────────────────────────────────
+              avgKillDistance:     {rotulo:"Distância das kills", fmt:v=>v.toFixed(1)+" m", icone:"duelo",
+                                    ajuda:"Distância média até o inimigo nas kills que você fez."},
+              avgDeathDistance:    {rotulo:"Distância das mortes", fmt:v=>v.toFixed(1)+" m", icone:"morte", dir:"neutro",
+                                    ajuda:"Distância média até o inimigo quando você morreu. Comparada com a das kills, mostra em que alcance você leva vantagem."},
+              closeRangeWinRate:   {rotulo:"Duelos curtos", fmt:v=>v.toFixed(0)+"%", icone:"duelo", principal:true,
+                                    ajuda:"Taxa de vitória em duelos de menos de 10 m. Só aparece com pelo menos 3 duelos na faixa."},
+              midRangeWinRate:     {rotulo:"Duelos médios", fmt:v=>v.toFixed(0)+"%", icone:"duelo",
+                                    ajuda:"Taxa de vitória entre 10 e 25 m."},
+              longRangeWinRate:    {rotulo:"Duelos longos", fmt:v=>v.toFixed(0)+"%", icone:"duelo", principal:true,
+                                    ajuda:"Taxa de vitória acima de 25 m — distância de rifle parado e AWP."},
+              totalDuels:          {rotulo:"Duelos", fmt:v=>v.toFixed(0), icone:"duelo", dir:"neutro"},
+              avgDeathTimeSeconds: {rotulo:"Morte média aos", fmt:v=>v.toFixed(0)+"s", icone:"relogio", dir:"neutro",
+                                    ajuda:"Segundo médio do round em que você morre. Muito cedo indica entrada sem apoio; muito tarde, espaço cedido."},
+              earlyDeathRate:      {rotulo:"Mortes na entrada", fmt:v=>v.toFixed(0)+"%", icone:"relogio", dir:"menor",
+                                    ajuda:"Percentual das suas mortes nos primeiros 15 s do round."},
+              deathsFromAboveRate: {rotulo:"Mortes por cima", fmt:v=>v.toFixed(0)+"%", icone:"morte", dir:"menor",
+                                    ajuda:"Percentual das mortes em que o inimigo estava numa posição mais alta que a sua."},
             };
 
             const cfg = k => METRICAS[k] || {rotulo:k, fmt:v=>Number.isInteger(v)?String(v):v.toFixed(2), dir:"neutro"};
