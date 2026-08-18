@@ -59,6 +59,15 @@ public class TrendSeriesDTO {
     /** Rótulo da faixa usada em {@link #mediaDaFaixa}, ex: "Azul (10.000–14.999)". */
     private String faixaLabel;
 
+    /**
+     * Nome da constante da faixa, ex: {@code "AZUL"}.
+     *
+     * <p>Viaja junto do rótulo porque a interface pinta a faixa com a cor dela,
+     * e derivar a cor a partir do texto do rótulo seria frágil — o rótulo é
+     * legível para humano e pode mudar de formato.</p>
+     */
+    private String faixaTier;
+
     private List<Ponto> pontos;
 
     @Data

@@ -189,20 +189,19 @@ final class DashboardPageTemplate {
                 `<span class="up">${DASH.vitorias}</span><span class="sep">V</span>` +
                 `<span class="down">${DASH.derrotas}</span><span class="sep">D</span>${obs}`;
 
-              const tag = (l, v) => `<span class="tag">${txt(l)} <b>${txt(v)}</b></span>`;
+              const tag = (l, v, extra) =>
+                `<span class="tag${extra || ""}">${txt(l)} <b>${txt(v)}</b></span>`;
               const bits = [tag("Partidas", DASH.partidasAnalisadas)];
-              if (DASH.rankTierLabel) bits.push(tag("Faixa", DASH.rankTierLabel));
+              if (DASH.rankTierLabel) {
+                bits.push(tag("Faixa", DASH.rankTierLabel, " is-tier" + classeTier(DASH.rankTier)));
+              }
               el("meta").innerHTML = bits.join("");
 
               if (DASH.csRating != null) {
-                const tier = DASH.rankTier || "";
-                const cls = tier ? " t-" + tier.toLowerCase().replace(/_/g, "-") : "";
-                const nome = tier
-                  ? tier.charAt(0) + tier.slice(1).toLowerCase().replace(/_/g, " ")
-                  : "Rating";
                 el("rank").innerHTML =
-                  `<div class="badge${cls}"><div><div class="n">${txt(DASH.csRating)}</div>` +
-                  `<div class="t">${txt(nome)}</div></div></div>`;
+                  `<div class="badge${classeTier(DASH.rankTier)}">` +
+                  `<div><div class="n">${txt(DASH.csRating)}</div>` +
+                  `<div class="t">${txt(nomeTier(DASH.rankTier) || "Rating")}</div></div></div>`;
               }
             }
 

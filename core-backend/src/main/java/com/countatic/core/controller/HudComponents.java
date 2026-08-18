@@ -43,6 +43,25 @@ final class HudComponents {
             };
 
             // ═══════════════════════════════════════════════════════════
+            //  Faixas de rank
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Classe CSS da faixa: "AZUL_CLARO" -> " t-azul-claro".
+             *
+             * Devolve string vazia quando a faixa é desconhecida, e aí o
+             * elemento cai no fallback da cor da marca. Todo lugar que mostra
+             * faixa passa por aqui — sem isso, cada tela derivaria a classe do
+             * seu jeito e uma delas ficaria para trás na primeira faixa nova.
+             */
+            const classeTier = tier =>
+              tier ? " t-" + String(tier).toLowerCase().replace(/_/g, "-") : "";
+
+            /** Nome legível da faixa a partir do enum: "AZUL_CLARO" -> "Azul claro". */
+            const nomeTier = tier =>
+              tier ? tier.charAt(0) + String(tier).slice(1).toLowerCase().replace(/_/g, " ") : "";
+
+            // ═══════════════════════════════════════════════════════════
             //  Ícones
             //  SVG inline: sem requisição de rede, e herdam a cor do texto
             //  por currentColor, então um mesmo ícone serve a qualquer estado.
@@ -118,6 +137,138 @@ final class HudComponents {
                     <div class="v">${sig}${esc(valor)}</div>
                     ${spark || ""}
                   </div>
+                </div>`;
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            //  RadarChart
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Referências de cada eixo do radar.
+             *
+             * As métricas que já são porcentagem entram direto. As que não são
+             * precisam de um teto para virar escala — e o teto é uma escolha,
+             * não um máximo do jogo: 120 de ADR ou 20 de dano de utilitária por
+             * round são desempenhos muito bons, não o limite físico. Quem passar
+             * disso satura em 100%, o que é aceitável num gráfico cuja pergunta
+             * é "qual foi meu papel", não "quanto exatamente eu fiz".
+             *
+             * Escala ABSOLUTA de propósito. Normalizar contra os outros nove da
+             * partida faria a mesma atuação mudar de forma conforme o lobby, e
+             * o radar existe justamente para reconhecer o papel de relance.
+             */
+            const EIXOS_RADAR = [
+              {
+                nome: "Mira",
+                // Ambas já são 0–100.
+                calc: m => media([m.headshotPercentage, m.crosshairPlacementScore]),
+              },
+              {
+                nome: "Impacto",
+                calc: m => media([teto(m.adr, 120), m.openingDuelWinRate]),
+              },
+              {
+                // Deliberadamente na posição de BAIXO: é o rótulo mais longo, e
+                // ali a âncora é central, com espaço para os dois lados. Nas
+                // laterais ele vazaria do viewBox e invadiria a coluna vizinha.
+                nome: "Sobrevivência",
+                // Menos mortes por round é melhor, então o eixo é invertido.
+                // 1.0 morte/round é morrer em todo round — o pior caso real.
+                calc: m => typeof m.deathsPerRound === "number"
+                  ? Math.max(0, 100 - teto(m.deathsPerRound, 1.0)) : null,
+              },
+              {
+                nome: "Suporte",
+                calc: m => media([m.flashEfficiency, teto(m.utilityDamagePerRound, 20)]),
+              },
+            ];
+
+            const teto = (v, max) =>
+              typeof v === "number" ? Math.min(100, (v / max) * 100) : null;
+
+            const media = vs => {
+              const ok = vs.filter(v => typeof v === "number");
+              // Eixo sem nenhuma métrica medida fica sem valor, em vez de zero:
+              // zero desenharia "péssimo" onde não houve medição.
+              return ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : null;
+            };
+
+            /**
+             * Radar de papel na partida.
+             *
+             * Recebe o mapa achatado de métricas do jogador. Quatro eixos, então
+             * o polígono é um losango — com poucos eixos a forma fica legível de
+             * relance, que é o objetivo.
+             */
+            function RadarChart(metricas) {
+              const valores = EIXOS_RADAR.map(e => e.calc(metricas || {}));
+              if (valores.every(v => v === null)) return "";
+
+              // Área mais larga que alta: o losango é simétrico, mas os rótulos
+              // laterais ocupam espaço só na horizontal. Reservá-lo aqui é o
+              // que impede o texto de sair do viewBox.
+              const W = 300, H = 250, CX = W / 2, CY = H / 2 - 8, R = 70;
+              const ang = i => (Math.PI * 2 * i) / EIXOS_RADAR.length - Math.PI / 2;
+              const ponto = (i, r) =>
+                [CX + Math.cos(ang(i)) * r, CY + Math.sin(ang(i)) * r];
+
+              // Eixo sem medição usa o centro para o polígono fechar, mas não
+              // ganha marcador — a diferença entre "zero" e "não medido"
+              // aparece no rótulo, não na forma.
+              const vertices = valores.map((v, i) =>
+                ponto(i, ((typeof v === "number" ? v : 0) / 100) * R)
+                  .map(n => n.toFixed(1)).join(",")).join(" ");
+
+              // Dois anéis: 50% e 100%. Mais que isso vira grade e compete com
+              // o polígono, que é o dado.
+              const aneis = [0.5, 1].map(f => {
+                const p = EIXOS_RADAR.map((_, i) =>
+                  ponto(i, R * f).map(n => n.toFixed(1)).join(",")).join(" ");
+                return `<polygon points="${p}" fill="none" stroke="var(--line)" stroke-width="1"/>`;
+              }).join("");
+
+              const raios = EIXOS_RADAR.map((_, i) => {
+                const [x, y] = ponto(i, R);
+                return `<line x1="${CX}" y1="${CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"
+                              stroke="var(--line)" stroke-width="1"/>`;
+              }).join("");
+
+              // Nome e valor em DUAS linhas. Na mesma linha, "Sobrevivência 45%"
+              // fica largo demais e encosta no vizinho antes de o viewBox
+              // acabar.
+              const rotulos = EIXOS_RADAR.map((e, i) => {
+                const [x, y] = ponto(i, R + 16);
+                const v = valores[i];
+                const centro = Math.abs(x - CX) < 2;
+                const ancora = centro ? "middle" : (x > CX ? "start" : "end");
+                const valorTxt = typeof v === "number" ? Math.round(v) + "%" : "—";
+
+                // Rótulo de baixo desce um pouco mais para não tocar o vértice.
+                const dy = centro ? (y > CY ? 10 : -4) : 0;
+
+                return `<text x="${x.toFixed(1)}" y="${(y + dy).toFixed(1)}"
+                              text-anchor="${ancora}" class="radar-lbl">
+                    <tspan x="${x.toFixed(1)}">${esc(e.nome)}</tspan>
+                    <tspan class="radar-val" x="${x.toFixed(1)}" dy="14">${valorTxt}</tspan>
+                  </text>`;
+              }).join("");
+
+              const marcas = valores.map((v, i) => {
+                if (typeof v !== "number") return "";
+                const [x, y] = ponto(i, (v / 100) * R);
+                return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"
+                                fill="var(--neon)"/>`;
+              }).join("");
+
+              return `<div class="radar">
+                  <svg viewBox="0 0 ${W} ${H}" role="img"
+                       aria-label="Perfil da partida por área de atuação">
+                    ${aneis}${raios}
+                    <polygon points="${vertices}" fill="rgba(176,38,255,.22)"
+                             stroke="var(--neon)" stroke-width="2"/>
+                    ${marcas}${rotulos}
+                  </svg>
                 </div>`;
             }
 
@@ -303,10 +454,15 @@ final class HudComponents {
 
               // Duas referências com pesos diferentes: a sua média é a que se
               // compara consigo mesmo; a da faixa diz se já está acima do
-              // esperado para o nível — por isso mais apagada, para não
-              // competir com a linha do próprio desempenho.
+              // esperado para o nível.
+              //
+              // A linha da faixa usa a COR da faixa, como todo lugar que a
+              // exibe — assim ela se identifica sozinha, sem depender de o
+              // usuário abrir o tooltip para saber o que é aquela segunda
+              // linha. Fica com opacidade menor para não competir com a linha
+              // do próprio desempenho.
               const media = linhaRef(serie.media, "var(--line)", "Sua média")
-                + linhaRef(serie.mediaDaFaixa, "rgba(139,127,168,.35)",
+                + linhaRef(serie.mediaDaFaixa, "var(--tier,rgba(139,127,168,.35))",
                            "Média da faixa " + (serie.faixaLabel || ""));
 
               // Primeiro vs. último ponto medido: é a leitura que o jogador quer
@@ -336,11 +492,15 @@ final class HudComponents {
                 }).join("");
 
               const legendaFaixa = typeof serie.mediaDaFaixa === "number"
-                ? `<span class="dim">· faixa ${esc(serie.mediaDaFaixa.toFixed(1))}</span>`
+                ? `<span class="trend-faixa">· ${esc(nomeTier(serie.faixaTier) || "faixa")} `
+                  + `${esc(serie.mediaDaFaixa.toFixed(1))}</span>`
                 : "";
 
+              // A classe da faixa entra no container para que --tier valha para
+              // a linha de referência e para o rodapé.
               return `
-                <div class="trend" data-serie='${esc(JSON.stringify(pts))}'>
+                <div class="trend${classeTier(serie.faixaTier)}"
+                     data-serie='${esc(JSON.stringify(pts))}'>
                   <div class="trend-head">
                     <span class="trend-label">${esc(serie.label)}</span>
                     <span class="${cls}"><span class="sig" aria-hidden="true">${seta}</span>${

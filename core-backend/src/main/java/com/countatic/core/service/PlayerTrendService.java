@@ -210,6 +210,7 @@ public class PlayerTrendService {
                 .media(comValor > 0 ? soma / comValor : null)
                 .mediaDaFaixa(mediaFaixa)
                 .faixaLabel(mediaFaixa == null || faixa == null ? null : faixa.getLabel())
+                .faixaTier(mediaFaixa == null || faixa == null ? null : faixa.name())
                 .pontos(pontos)
                 .build();
     }

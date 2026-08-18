@@ -86,6 +86,11 @@ final class MatchPageTemplate {
 
             .hint{color:var(--muted);font-size:.82rem;margin:.9rem 0 0}
 
+            /* Radar e comparação lado a lado; empilham quando não cabem. */
+            .resumo{display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;
+                    margin-bottom:1.5rem}
+            .resumo-lado{flex:1 1 300px;min-width:0}
+
             /* ─── CATEGORIA E COMPARAÇÃO ──────────────────────────────── */
             .cat{margin-bottom:1.5rem}
             .cat > h3{margin-bottom:.7rem}
@@ -96,11 +101,6 @@ final class MatchPageTemplate {
             .cmp .lbl{font-weight:600;letter-spacing:.04em}
             .cmp .val{font-family:var(--f-mono);font-size:.84rem}
             .cmp .val b{font-size:.95rem;color:var(--text)}
-
-            .tier{display:inline-block;font-family:var(--f-mono);font-size:.72rem;
-                  letter-spacing:.08em;color:var(--neon);
-                  background:var(--tint);border:1px solid var(--line);
-                  padding:.15rem .5rem}
 
             footer{position:relative;z-index:2;text-align:center;
                    color:var(--muted);font-size:.76rem;letter-spacing:.08em;
@@ -335,7 +335,7 @@ final class MatchPageTemplate {
 
               let html = `<div class="cat"><h3>Comparado com a faixa</h3>` +
                          `<p class="hint" style="margin:-.35rem 0 .9rem">` +
-                         `<span class="tier">${txt(b.faixaLabel)}</span> ` +
+                         `<span class="tier${classeTier(DATA.rankTier)}">${txt(b.faixaLabel)}</span> ` +
                          `<span class="dim">· base de ${b.amostraTotal} desempenhos ` +
                          `já analisados nesta faixa</span></p>`;
 
@@ -379,14 +379,16 @@ final class MatchPageTemplate {
                   `<div class="side tr"><div class="num">${tr}</div><div class="who">TR</div></div>`;
               }
 
-              const tag = (label, value) =>
-                `<span class="tag">${txt(label)} <b>${txt(value)}</b></span>`;
+              const tag = (label, value, extra) =>
+                `<span class="tag${extra || ""}">${txt(label)} <b>${txt(value)}</b></span>`;
 
               const bits = [];
               if (DATA.totalRounds) bits.push(tag("Rounds", DATA.totalRounds));
               if (DATA.durationSeconds) bits.push(tag("Duração", Math.round(DATA.durationSeconds / 60) + " min"));
               if (DATA.tickRate) bits.push(tag("Tick", DATA.tickRate));
-              if (DATA.rankTierLabel) bits.push(tag("Faixa", DATA.rankTierLabel));
+              if (DATA.rankTierLabel) {
+                bits.push(tag("Faixa", DATA.rankTierLabel, " is-tier" + classeTier(DATA.rankTier)));
+              }
               if (DATA.playedAt) {
                 const d = new Date(DATA.playedAt);
                 if (!isNaN(d)) bits.push(tag("Jogada em", d.toLocaleString("pt-BR")));
@@ -400,11 +402,8 @@ final class MatchPageTemplate {
                 // próprio enum ("AZUL_CLARO" -> "Azul claro"), o que evita
                 // fatiar o rankTierLabel — que existe para exibir a faixa
                 // numérica e pode mudar de formato sem aviso.
-                const tier = DATA.rankTier || "";
-                const cls  = tier ? " t-" + tier.toLowerCase().replace(/_/g, "-") : "";
-                const nome = tier
-                  ? tier.charAt(0) + tier.slice(1).toLowerCase().replace(/_/g, " ")
-                  : "Rating";
+                const cls  = classeTier(DATA.rankTier);
+                const nome = nomeTier(DATA.rankTier) || "Rating";
 
                 el("rank").innerHTML =
                   `<div class="badge${cls}" title="CS Rating de quem cadastrou a partida">` +
@@ -459,10 +458,17 @@ final class MatchPageTemplate {
 
               el("detailTitle").textContent = "Métricas — " + (p.playerName || p.steamId64);
 
-              let html = renderBaseline(p.baseline);
+              // Todas as métricas do jogador num mapa só — o radar cruza
+              // categorias (mira vem de Aim, suporte vem de Utility).
+              const todas = Object.assign({}, ...Object.values(p.metrics || {}));
 
-              // A razao sozinha nao mostra volume: 2.25 pode ser 18/8 ou 45/20.
-              html += KdBar(p.kills, p.deaths);
+              let html = `<div class="resumo">
+                  ${RadarChart(todas)}
+                  <div class="resumo-lado">
+                    ${KdBar(p.kills, p.deaths)}
+                    ${renderBaseline(p.baseline)}
+                  </div>
+                </div>`;
 
               const cats = Object.keys(p.metrics || {});
 

@@ -323,13 +323,37 @@ final class HudTheme {
                       letter-spacing:.14em;text-transform:uppercase;
                       color:var(--tier);margin-top:.3rem;opacity:.9}
 
-            .badge.t-cinza      {--tier:#B6BECC;--tier-glow:rgba(182,190,204,.55);--tier-soft:rgba(182,190,204,.18)}
-            .badge.t-azul-claro {--tier:#6FD3F2;--tier-glow:rgba(111,211,242,.55);--tier-soft:rgba(111,211,242,.18)}
-            .badge.t-azul       {--tier:#5B8DEF;--tier-glow:rgba(91,141,239,.60); --tier-soft:rgba(91,141,239,.20)}
-            .badge.t-roxo       {--tier:#B026FF;--tier-glow:rgba(176,38,255,.55); --tier-soft:rgba(176,38,255,.18)}
-            .badge.t-rosa       {--tier:#FF57C1;--tier-glow:rgba(255,87,193,.55); --tier-soft:rgba(255,87,193,.18)}
-            .badge.t-vermelho   {--tier:#FF4D4D;--tier-glow:rgba(255,77,77,.55);  --tier-soft:rgba(255,77,77,.18)}
-            .badge.t-ouro       {--tier:#FFC53D;--tier-glow:rgba(255,197,61,.60); --tier-soft:rgba(255,197,61,.20)}
+            /* ───────────────────────────────────────────────────────────
+               CORES DAS FAIXAS
+               Genéricas de propósito: qualquer elemento que exiba a faixa
+               recebe a classe e passa a falar a mesma cor. Antes isso vivia
+               preso ao badge, e o rótulo "Azul" aparecia roxo em todo o resto
+               da interface — o oposto do que a faixa comunica.
+
+               Vêm DEPOIS do .badge para vencer o padrão dele por ordem de
+               declaração (mesma especificidade).
+               ─────────────────────────────────────────────────────────── */
+            .t-cinza      {--tier:#B6BECC;--tier-glow:rgba(182,190,204,.55);--tier-soft:rgba(182,190,204,.18)}
+            .t-azul-claro {--tier:#6FD3F2;--tier-glow:rgba(111,211,242,.55);--tier-soft:rgba(111,211,242,.18)}
+            .t-azul       {--tier:#5B8DEF;--tier-glow:rgba(91,141,239,.60); --tier-soft:rgba(91,141,239,.20)}
+            .t-roxo       {--tier:#B026FF;--tier-glow:rgba(176,38,255,.55); --tier-soft:rgba(176,38,255,.18)}
+            .t-rosa       {--tier:#FF57C1;--tier-glow:rgba(255,87,193,.55); --tier-soft:rgba(255,87,193,.18)}
+            .t-vermelho   {--tier:#FF4D4D;--tier-glow:rgba(255,77,77,.55);  --tier-soft:rgba(255,77,77,.18)}
+            .t-ouro       {--tier:#FFC53D;--tier-glow:rgba(255,197,61,.60); --tier-soft:rgba(255,197,61,.20)}
+
+            /* Chip com o nome da faixa. O fallback para --neon cobre o caso de
+               não sabermos a faixa: melhor a cor da marca que nenhuma. */
+            .tier{display:inline-block;font-family:var(--f-mono);font-size:.72rem;
+                  letter-spacing:.08em;
+                  color:var(--tier,var(--neon));
+                  background:var(--tier-soft,var(--tint));
+                  border:1px solid var(--tier,var(--line));
+                  padding:.15rem .5rem}
+
+            /* Tag de metadado que carrega a faixa: só o valor ganha a cor, o
+               rótulo "Faixa" continua apagado como as demais tags. */
+            .meta .tag.is-tier b{color:var(--tier,var(--text))}
+            .meta .tag.is-tier{border-color:var(--tier,var(--line))}
 
             /* O pulso usa a cor da faixa, não a da marca. */
             @keyframes hud-pulse{
@@ -418,6 +442,8 @@ final class HudTheme {
                          letter-spacing:.1em;text-transform:uppercase;font-size:.72rem}
             .trend-foot{display:flex;justify-content:space-between;
                         font-size:.7rem;margin-top:.2rem}
+            /* Legenda da faixa na cor da faixa, casando com a linha tracejada. */
+            .trend-faixa{color:var(--tier,var(--muted))}
 
             /* Botões de métrica: o .btn já existia no vocabulário e não tinha
                tela usando. O ativo é marcado por aria-pressed, que dá o estado
@@ -475,6 +501,20 @@ final class HudTheme {
             .coach-banner a{display:inline-block;margin-top:.35rem;
                             font-size:.72rem;font-weight:600;letter-spacing:.1em;
                             text-transform:uppercase;color:var(--neon)}
+
+            /* ───────────────────────────────────────────────────────────
+               RADAR
+               Largura fixa e encolhível: o losango precisa de espaço para os
+               rótulos, e espremê-lo mais que isso os faz colidir.
+               ─────────────────────────────────────────────────────────── */
+            .radar{flex:0 0 auto;width:min(300px,100%)}
+            /* Sem overflow:visible. O viewBox já reserva a margem dos rótulos;
+               se uma fonte de fallback vier mais larga, o texto é cortado em
+               vez de invadir a coluna ao lado — falha visível, não confusa. */
+            .radar svg{width:100%;height:auto;display:block}
+            .radar-lbl{fill:var(--muted);font-family:var(--f-body);font-size:11px;
+                       font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+            .radar-val{fill:var(--text);font-family:var(--f-mono);font-size:11px}
 
             /* ───────────────────────────────────────────────────────────
                SPARKLINE E BARRA DE K/D
