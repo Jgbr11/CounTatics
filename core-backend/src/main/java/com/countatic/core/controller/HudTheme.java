@@ -226,7 +226,10 @@ final class HudTheme {
               padding:1.25rem 1.35rem;
             }
             .panel-head{display:flex;align-items:center;gap:.6rem;margin-bottom:1.1rem}
-            .panel-head::after{content:"";flex:1;height:1px;background:var(--line)}
+            /* O filete entra ANTES de qualquer ação, empurrando-a para a
+               direita — daí o ::after ser irmão e não o último elemento. */
+            .panel-head::after{content:"";flex:1;height:1px;background:var(--line);order:1}
+            .panel-head .btn{order:2;padding:.35rem .8rem;font-size:.7rem}
 
             /* ───────────────────────────────────────────────────────────
                METRIC CARD

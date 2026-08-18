@@ -141,6 +141,139 @@ final class HudComponents {
             }
 
             // ═══════════════════════════════════════════════════════════
+            //  Exportar imagem
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Gera um PNG do resumo da partida, para mandar no chat.
+             *
+             * Desenhado direto no canvas 2D, sem biblioteca. As duas
+             * alternativas usuais foram descartadas:
+             *
+             *  - html2canvas e afins significam vendorizar centenas de KB num
+             *    projeto que não tem bundler.
+             *  - serializar o SVG da página e rasterizá-lo perde as fontes: o
+             *    SVG carregado como imagem não enxerga a folha de estilo nem os
+             *    webfonts do documento, e o texto sairia em Times.
+             *
+             * O canvas 2D, ao contrário, usa fontes já carregadas — daí o
+             * `document.fonts.ready` antes de desenhar. Sem essa espera, a
+             * primeira exportação sai em fonte de fallback.
+             */
+            async function exportarImagem(dados) {
+              const L = 1200, A = 630;   // proporção de card social; cai bem no Discord
+              const cv = document.createElement("canvas");
+              cv.width = L; cv.height = A;
+              const g = cv.getContext("2d");
+
+              const css = getComputedStyle(document.documentElement);
+              const cor = n => css.getPropertyValue(n).trim() || "#fff";
+
+              // As fontes precisam estar prontas ANTES do primeiro fillText.
+              if (document.fonts && document.fonts.ready) {
+                try { await document.fonts.ready; } catch (e) { /* segue com fallback */ }
+              }
+
+              // ─── Fundo ────────────────────────────────────────────────
+              g.fillStyle = cor("--bg");
+              g.fillRect(0, 0, L, A);
+
+              // A mesma grade da tela, para a imagem ser reconhecível como
+              // sendo do sistema.
+              g.strokeStyle = "rgba(176,38,255,.06)";
+              g.lineWidth = 1;
+              for (let x = 0; x <= L; x += 40) {
+                g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, A); g.stroke();
+              }
+              for (let y = 0; y <= A; y += 40) {
+                g.beginPath(); g.moveTo(0, y + .5); g.lineTo(L, y + .5); g.stroke();
+              }
+
+              g.strokeStyle = cor("--neon");
+              g.lineWidth = 2;
+              g.strokeRect(24, 24, L - 48, A - 48);
+
+              // ─── Marca ────────────────────────────────────────────────
+              g.fillStyle = cor("--neon");
+              g.font = '600 22px "Share Tech Mono", monospace';
+              g.fillText("COUNTATIC", 64, 96);
+
+              // ─── Mapa e placar ────────────────────────────────────────
+              g.fillStyle = cor("--text");
+              g.font = '900 64px Orbitron, sans-serif';
+              g.fillText(String(dados.mapa || "").toUpperCase(), 64, 172);
+
+              if (dados.scoreCT != null && dados.scoreTR != null) {
+                g.font = '900 56px Orbitron, sans-serif';
+                const ct = String(dados.scoreCT), tr = String(dados.scoreTR);
+                g.fillStyle = cor("--ct");
+                g.fillText(ct, 64, 262);
+                const w = g.measureText(ct).width;
+                g.fillStyle = cor("--muted");
+                g.fillText(" : ", 64 + w, 262);
+                const w2 = g.measureText(" : ").width;
+                g.fillStyle = cor("--tr");
+                g.fillText(tr, 64 + w + w2, 262);
+              }
+
+              // ─── Jogador ──────────────────────────────────────────────
+              g.fillStyle = cor("--muted");
+              g.font = '600 20px Rajdhani, sans-serif';
+              g.fillText("JOGADOR", 64, 330);
+              g.fillStyle = cor("--text");
+              g.font = '700 40px Rajdhani, sans-serif';
+              g.fillText(String(dados.jogador || ""), 64, 372);
+
+              // ─── Métricas em destaque ─────────────────────────────────
+              // Só três: um card compartilhado é lido de relance, e mais que
+              // isso vira tabela ilegível no tamanho de um anexo de chat.
+              const cards = (dados.metricas || []).slice(0, 3);
+              const cw = 320, ch = 150, gap = 24;
+              const x0 = L - 64 - (cards.length * cw + (cards.length - 1) * gap);
+
+              cards.forEach((m, i) => {
+                const x = x0 + i * (cw + gap), y = 420;
+
+                g.fillStyle = "rgba(255,255,255,.03)";
+                g.fillRect(x, y, cw, ch);
+                g.strokeStyle = "rgba(176,38,255,.25)";
+                g.lineWidth = 1;
+                g.strokeRect(x + .5, y + .5, cw - 1, ch - 1);
+
+                g.fillStyle = cor("--muted");
+                g.font = '600 18px Rajdhani, sans-serif';
+                g.fillText(String(m.rotulo || "").toUpperCase(), x + 24, y + 44);
+
+                g.fillStyle = m.cor ? cor(m.cor) : cor("--text");
+                g.font = '900 60px Orbitron, sans-serif';
+                g.fillText(String(m.valor), x + 24, y + 112);
+              });
+
+              // ─── Rodapé ───────────────────────────────────────────────
+              g.fillStyle = cor("--muted");
+              g.font = '400 18px "Share Tech Mono", monospace';
+              g.fillText(dados.rodape || "Análise gerada a partir da demo oficial", 64, A - 56);
+
+              return new Promise(resolve => cv.toBlob(resolve, "image/png"));
+            }
+
+            /** Dispara o download do PNG gerado. */
+            async function baixarImagem(dados, nomeArquivo) {
+              const blob = await exportarImagem(dados);
+              if (!blob) return;
+
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = nomeArquivo || "countatic.png";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              // Liberar na hora cancelaria o download em alguns navegadores.
+              setTimeout(() => URL.revokeObjectURL(url), 10000);
+            }
+
+            // ═══════════════════════════════════════════════════════════
             //  RadarChart
             // ═══════════════════════════════════════════════════════════
 

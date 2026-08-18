@@ -157,7 +157,10 @@ final class MatchPageTemplate {
 
               <section class="panel cut">
                 <div class="cut-in">
-                  <div class="panel-head"><h2 id="detailTitle">Métricas</h2></div>
+                  <div class="panel-head">
+                    <h2 id="detailTitle">Métricas</h2>
+                    <button type="button" class="btn" id="btnImagem">Gerar imagem</button>
+                  </div>
                   <p class="hint" style="margin:-.5rem 0 1rem">
                     A cor do número compara com a <b>média desta partida</b>:
                     <span class="up">▲ acima</span> ·
@@ -513,6 +516,47 @@ final class MatchPageTemplate {
 
               renderTendencia(p);
               carregarSparklines(p);
+              prepararImagem(p, todas);
+            }
+
+            /**
+             * Botão de exportar imagem do jogador selecionado.
+             *
+             * As três métricas do card são fixas de propósito — K/D, ADR e
+             * HS% são as que se lê de relance num anexo de chat. Deixar o
+             * usuário escolher seria uma tela de configuração para um botão.
+             */
+            function prepararImagem(p, metricas) {
+              const btn = el("btnImagem");
+              if (!btn) return;
+
+              const num = (v, casas) => typeof v === "number" ? v.toFixed(casas) : "—";
+              const kd = p.deaths > 0 ? p.kills / p.deaths : p.kills;
+
+              btn.onclick = async () => {
+                const rotulo = btn.textContent;
+                btn.disabled = true;
+                btn.textContent = "Gerando…";
+                try {
+                  await baixarImagem({
+                    mapa: DATA.mapName,
+                    scoreCT: DATA.scoreCT,
+                    scoreTR: DATA.scoreTR,
+                    jogador: p.playerName || p.steamId64,
+                    rodape: DATA.playedAt
+                      ? "Partida de " + new Date(DATA.playedAt).toLocaleDateString("pt-BR")
+                      : "Análise gerada a partir da demo oficial",
+                    metricas: [
+                      {rotulo: "K/D", valor: num(kd, 2), cor: kd >= 1 ? "--good" : "--bad"},
+                      {rotulo: "ADR", valor: num(metricas.adr, 1)},
+                      {rotulo: "Headshot %", valor: num(metricas.headshotPercentage, 1) + "%"},
+                    ],
+                  }, `countatic-${DATA.mapName || "partida"}-${p.playerName || ""}.png`);
+                } finally {
+                  btn.disabled = false;
+                  btn.textContent = rotulo;
+                }
+              };
             }
 
             /**
