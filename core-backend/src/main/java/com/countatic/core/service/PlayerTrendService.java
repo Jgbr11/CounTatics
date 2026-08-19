@@ -75,6 +75,9 @@ public class PlayerTrendService {
         LEITORES.put("flashEfficiency", PlayerMatchStats::getFlashEfficiency);
         LEITORES.put("utilityDamagePerRound", PlayerMatchStats::getUtilityDamagePerRound);
         LEITORES.put("crosshairPlacementScore", PlayerMatchStats::getCrosshairPlacementScore);
+        LEITORES.put("closeRangeWinRate", PlayerMatchStats::getCloseRangeWinRate);
+        LEITORES.put("longRangeWinRate", PlayerMatchStats::getLongRangeWinRate);
+        LEITORES.put("earlyDeathRate", PlayerMatchStats::getEarlyDeathRate);
     }
 
     private final PlayerMatchStatsRepository statsRepository;

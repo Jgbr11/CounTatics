@@ -96,6 +96,22 @@ public class PlayerMatchStats {
     private Double utilityDamagePerRound;
     private Double crosshairPlacementScore;
 
+    // ─── Posicionamento ───────────────────────────────────────────────
+    // Só as três com direção inequívoca são persistidas. "Distância média
+    // das mortes", por exemplo, fica de fora: morrer mais longe não é nem
+    // melhor nem pior por si só, e sem essa resposta a métrica não pode
+    // entrar na comparação por percentil, que precisa saber para que lado
+    // olhar. Ela continua existindo por partida, só não vira histórico.
+
+    /** Taxa de vitória em duelos de menos de 10 m. */
+    private Double closeRangeWinRate;
+
+    /** Taxa de vitória em duelos acima de 25 m. */
+    private Double longRangeWinRate;
+
+    /** Percentual das mortes nos primeiros 15 s do round. */
+    private Double earlyDeathRate;
+
     // ─── Absolutos (exibição, não comparação) ─────────────────────────
 
     private Integer kills;

@@ -625,7 +625,7 @@ final class MatchPageTemplate {
              * acompanha entre partidas. Oferecer as dez viraria uma fileira de
              * botões que ninguém lê.
              */
-            const TENDENCIAS = ["adr", "kdRatio", "headshotPercentage", "flashEfficiency"];
+            const TENDENCIAS = ["adr", "kdRatio", "headshotPercentage", "longRangeWinRate"];
 
             let metricaAtual = TENDENCIAS[0];
             let jogadorAtual = null;

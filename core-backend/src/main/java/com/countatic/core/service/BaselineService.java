@@ -52,13 +52,21 @@ public class BaselineService {
         METRICAS.put("kdRatio", new MetricaInfo("kd_ratio", "K/D", true));
         METRICAS.put("headshotPercentage", new MetricaInfo("headshot_percentage", "Headshot %", true));
         METRICAS.put("killsPerRound", new MetricaInfo("kills_per_round", "Kills / round", true));
-        // Única métrica em que MENOR é melhor — daí a flag existir.
+        // Uma das métricas em que MENOR é melhor — daí a flag existir.
         METRICAS.put("deathsPerRound", new MetricaInfo("deaths_per_round", "Mortes / round", false));
         METRICAS.put("tradeKillsPerRound", new MetricaInfo("trade_kills_per_round", "Trades / round", true));
         METRICAS.put("openingDuelWinRate", new MetricaInfo("opening_duel_win_rate", "Taxa 1º duelo", true));
         METRICAS.put("flashEfficiency", new MetricaInfo("flash_efficiency", "Eficiência de flash", true));
         METRICAS.put("utilityDamagePerRound", new MetricaInfo("utility_damage_per_round", "Dano util. / round", true));
         METRICAS.put("crosshairPlacementScore", new MetricaInfo("crosshair_placement_score", "Crosshair placement", true));
+
+        // Posicionamento. Só entram as de direção inequívoca: o percentil
+        // precisa saber para que lado olhar, e "distância média das mortes"
+        // não tem resposta — morrer mais longe não é melhor nem pior.
+        METRICAS.put("closeRangeWinRate", new MetricaInfo("close_range_win_rate", "Duelos curtos", true));
+        METRICAS.put("longRangeWinRate", new MetricaInfo("long_range_win_rate", "Duelos longos", true));
+        // Morrer menos na entrada é melhor — segunda métrica invertida.
+        METRICAS.put("earlyDeathRate", new MetricaInfo("early_death_rate", "Mortes na entrada", false));
     }
 
     /** Nome da coluna, rótulo e se valores maiores são melhores. */

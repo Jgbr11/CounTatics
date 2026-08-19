@@ -159,6 +159,9 @@ final class DashboardPageTemplate {
               flashEfficiency:         {rotulo:"Eficiência de flash", fmt:v=>v.toFixed(1)+"%", icone:"granada"},
               utilityDamagePerRound:   {rotulo:"Dano util. / round", fmt:v=>v.toFixed(1), icone:"dano"},
               crosshairPlacementScore: {rotulo:"Crosshair placement", fmt:v=>v.toFixed(1)+"%", icone:"mira"},
+              closeRangeWinRate:       {rotulo:"Duelos curtos", fmt:v=>v.toFixed(0)+"%", icone:"duelo"},
+              longRangeWinRate:        {rotulo:"Duelos longos", fmt:v=>v.toFixed(0)+"%", icone:"duelo"},
+              earlyDeathRate:          {rotulo:"Mortes na entrada", fmt:v=>v.toFixed(0)+"%", icone:"relogio", dir:"menor"},
             };
 
             const cfg = k => METRICAS[k] || {rotulo:k, fmt:v=>v.toFixed(2), dir:"neutro"};
@@ -266,7 +269,7 @@ final class DashboardPageTemplate {
             }
 
             // ─── Evolução ────────────────────────────────────────────
-            const TENDENCIAS = ["adr", "kdRatio", "headshotPercentage", "flashEfficiency"];
+            const TENDENCIAS = ["adr", "kdRatio", "headshotPercentage", "longRangeWinRate"];
             let metricaAtual = TENDENCIAS[0];
 
             function renderTendencia() {

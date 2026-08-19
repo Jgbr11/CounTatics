@@ -239,6 +239,47 @@ class PlayerTrendServiceTest {
         assertThat(serie.getFaixaLabel()).isNull();
     }
 
+    /**
+     * As métricas de posicionamento passaram a ser persistidas para virarem
+     * histórico. Um erro de mapeamento entre a chave e a coluna não quebra
+     * nada visível — devolve série vazia, que parece "jogador sem histórico".
+     */
+    @Test
+    @DisplayName("as métricas de posicionamento chegam à série com o valor gravado")
+    void posicionamentoViraHistorico() {
+        Match m = matchRepository.save(Match.builder()
+                .demoFileHash("hash-pos").demoFileName("t.dem").mapName("de_mirage")
+                .durationSeconds(1800).scoreCT(13).scoreTR(8)
+                .totalRounds(21).tickRate(64)
+                .status(MatchStatus.COMPLETED).playedAt(Instant.now())
+                .build());
+
+        statsRepository.save(PlayerMatchStats.builder()
+                .match(m).player(jogador).steamId64(STEAM_ID).roundsPlayed(21)
+                .closeRangeWinRate(71.0)
+                .longRangeWinRate(29.0)
+                .earlyDeathRate(31.0)
+                .build());
+
+        assertThat(trendService.serie(STEAM_ID, "closeRangeWinRate", 10)
+                .getPontos().get(0).getValor()).isEqualTo(71.0);
+        assertThat(trendService.serie(STEAM_ID, "longRangeWinRate", 10)
+                .getPontos().get(0).getValor()).isEqualTo(29.0);
+        assertThat(trendService.serie(STEAM_ID, "earlyDeathRate", 10)
+                .getPontos().get(0).getValor()).isEqualTo(31.0);
+    }
+
+    /**
+     * Morrer menos na entrada é melhor. Sem a direção correta, o percentil
+     * premiaria quem mais morre entrando.
+     */
+    @Test
+    @DisplayName("mortes na entrada viajam como métrica invertida")
+    void mortesNaEntradaSaoInvertidas() {
+        assertThat(trendService.serie(STEAM_ID, "earlyDeathRate", 10).isMaiorEhMelhor()).isFalse();
+        assertThat(trendService.serie(STEAM_ID, "longRangeWinRate", 10).isMaiorEhMelhor()).isTrue();
+    }
+
     // ═══════════════════════════════════════════════════════════════
 
     private void criarDesempenho(Instant jogadaEm, Double adr) {
