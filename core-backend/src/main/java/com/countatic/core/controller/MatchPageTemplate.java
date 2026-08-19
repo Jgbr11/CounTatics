@@ -86,6 +86,20 @@ final class MatchPageTemplate {
 
             .hint{color:var(--muted);font-size:.82rem;margin:.9rem 0 0}
 
+            /* Alternador de lado. Cada botão herda a cor do time no estado
+               ativo, para o recorte em vigor ser óbvio sem ler o rótulo. */
+            .lados{display:flex;gap:.35rem;order:2}
+            .lados .btn{padding:.35rem .75rem;font-size:.68rem}
+            .lados .btn[aria-pressed="true"]{border-color:var(--neon);
+                                             background:rgba(176,38,255,.16)}
+            .lados .btn.is-ct[aria-pressed="true"]{border-color:var(--ct);
+                                                   background:rgba(111,159,216,.18);color:var(--ct)}
+            .lados .btn.is-tr[aria-pressed="true"]{border-color:var(--tr);
+                                                   background:rgba(233,180,76,.18);color:var(--tr)}
+
+            /* Aviso de recorte com poucos rounds. */
+            .lado-nota{margin:-.4rem 0 1rem}
+
             /* Radar e comparação lado a lado; empilham quando não cabem. */
             .resumo{display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;
                     margin-bottom:1.5rem}
@@ -159,6 +173,11 @@ final class MatchPageTemplate {
                 <div class="cut-in">
                   <div class="panel-head">
                     <h2 id="detailTitle">Métricas</h2>
+                    <div class="lados" id="lados" role="group" aria-label="Lado da partida">
+                      <button type="button" class="btn" data-lado="" aria-pressed="true">Partida</button>
+                      <button type="button" class="btn is-ct" data-lado="ct" aria-pressed="false">CT</button>
+                      <button type="button" class="btn is-tr" data-lado="tr" aria-pressed="false">TR</button>
+                    </div>
                     <button type="button" class="btn" id="btnImagem">Gerar imagem</button>
                   </div>
                   <p class="hint" style="margin:-.5rem 0 1rem">
@@ -471,18 +490,39 @@ final class MatchPageTemplate {
               });
             }
 
+            /** Índice do jogador selecionado — o toggle de lado precisa saber quem é. */
+            let indiceSelecionado = 0;
+
             function select(i) {
               document.querySelectorAll("#rows tr").forEach((r, j) =>
                 r.setAttribute("aria-current", String(i === j)));
 
               const p = (DATA.players || [])[i];
               if (!p) return;
+              indiceSelecionado = i;
 
               el("detailTitle").textContent = "Métricas — " + (p.playerName || p.steamId64);
 
+              // Recorte volta para "partida inteira" ao trocar de jogador: o
+              // lado escolhido para um não diz nada sobre o próximo.
+              ladoAtual = "";
+              ladosDoJogador = null;
+              marcarBotoesDeLado();
+
+              renderDetalhe(p, p.metrics, p.insights, null);
+            }
+
+            /**
+             * Desenha o painel de métricas a partir de UM recorte.
+             *
+             * Recebe metrics/insights explicitamente em vez de ler do jogador,
+             * porque o mesmo desenho serve para a partida inteira e para cada
+             * lado — a diferença é só a origem dos números.
+             */
+            function renderDetalhe(p, metrics, insights, rounds) {
               // Todas as métricas do jogador num mapa só — o radar cruza
               // categorias (mira vem de Aim, suporte vem de Utility).
-              const todas = Object.assign({}, ...Object.values(p.metrics || {}));
+              const todas = Object.assign({}, ...Object.values(metrics || {}));
 
               let html = `<div class="resumo">
                   ${RadarChart(todas)}
@@ -492,10 +532,17 @@ final class MatchPageTemplate {
                   </div>
                 </div>`;
 
-              const cats = Object.keys(p.metrics || {});
+              const cats = Object.keys(metrics || {});
 
               if (!cats.length) {
-                html = `<p class="hint">Sem métricas calculadas para este jogador.</p>`;
+                html = `<p class="hint">Sem métricas calculadas para este recorte.</p>`;
+              }
+
+              // Poucos rounds tornam qualquer taxa instável. Dizer isso é mais
+              // honesto que exibir "100% de duelos curtos" vindo de dois duelos.
+              if (rounds != null && rounds < 5) {
+                html = `<p class="note lado-nota">Apenas ${rounds} round(s) deste lado —
+                        as taxas abaixo são muito sensíveis a um round isolado.</p>` + html;
               }
 
               for (const cat of cats) {
@@ -503,7 +550,7 @@ final class MatchPageTemplate {
 
                 // As principais primeiro: elas ocupam duas colunas, e deixá-las
                 // na ordem crua abriria buracos na grade.
-                const entradas = Object.entries(p.metrics[cat])
+                const entradas = Object.entries(metrics[cat])
                   .sort((a, b) => (cfg(b[0]).principal ? 1 : 0) - (cfg(a[0]).principal ? 1 : 0));
 
                 for (const [k, v] of entradas) {
@@ -527,15 +574,72 @@ final class MatchPageTemplate {
               // painel próprio, ordenado por gravidade. Espalhadas, um elogio e
               // um alerta tinham o mesmo peso e o jogador precisava ler tudo
               // para achar o que fazer.
-              const dicas = achatarInsights(p.insights);
+              const dicas = achatarInsights(insights);
               el("coachTitle").textContent =
                 "O que treinar — " + (p.playerName || p.steamId64);
               el("coach").innerHTML = CoachPanel(dicas);
               el("banner").innerHTML = CoachBanner(dicas);
 
-              renderTendencia(p);
-              carregarSparklines(p);
-              prepararImagem(p, todas);
+              // Estes três olham o histórico e a partida como um todo; não
+              // mudam com o recorte de lado.
+              if (rounds == null) {
+                renderTendencia(p);
+                carregarSparklines(p);
+                prepararImagem(p, todas);
+              }
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            //  Recorte por lado
+            // ═══════════════════════════════════════════════════════════
+
+            /** "" = partida inteira; "ct" ou "tr" = recorte. */
+            let ladoAtual = "";
+
+            /** Resposta de /sides do jogador selecionado, buscada uma vez só. */
+            let ladosDoJogador = null;
+
+            function marcarBotoesDeLado() {
+              el("lados").querySelectorAll("button").forEach(b =>
+                b.setAttribute("aria-pressed", String((b.dataset.lado || "") === ladoAtual)));
+            }
+
+            el("lados").querySelectorAll("button").forEach(b => {
+              b.onclick = () => trocarLado(b.dataset.lado || "");
+            });
+
+            async function trocarLado(lado) {
+              const p = (DATA.players || [])[indiceSelecionado];
+              if (!p) return;
+
+              ladoAtual = lado;
+              marcarBotoesDeLado();
+
+              if (!lado) {
+                renderDetalhe(p, p.metrics, p.insights, null);
+                return;
+              }
+
+              const alvo = el("detail");
+              if (!ladosDoJogador) {
+                alvo.innerHTML = `<p class="hint">Separando por lado…</p>`;
+                try {
+                  const r = await fetch(`/api/matches/${DATA.matchId}`
+                                      + `/players/${encodeURIComponent(p.steamId64)}/sides`);
+                  if (!r.ok) throw new Error("HTTP " + r.status);
+                  ladosDoJogador = await r.json();
+                } catch (e) {
+                  // Voltar para a partida inteira é melhor que deixar a tela
+                  // vazia: o dado principal continua disponível.
+                  alvo.innerHTML = `<p class="hint">Não foi possível separar por lado agora.</p>`;
+                  return;
+                }
+                // O jogador pode ter mudado enquanto a resposta vinha.
+                if ((DATA.players || [])[indiceSelecionado] !== p) return;
+              }
+
+              const dados = ladosDoJogador[lado] || {};
+              renderDetalhe(p, dados.metrics, dados.insights, dados.roundsJogados ?? 0);
             }
 
             /**

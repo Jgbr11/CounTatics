@@ -9,6 +9,7 @@ import com.countatic.core.service.MatchAnalysisService;
 import com.countatic.core.service.MatchFetchJobService;
 import com.countatic.core.service.MatchQueryService;
 import com.countatic.core.service.MatchReprocessService;
+import com.countatic.core.service.MatchSideStatsService;
 import com.countatic.core.service.PlayerDashboardService;
 import com.countatic.core.service.PlayerTrendService;
 import com.countatic.core.repository.PlayerRepository;
@@ -38,6 +39,7 @@ public class MatchController {
     private final PlayerTrendService trendService;
     private final PlayerDashboardService dashboardService;
     private final PlayerRepository playerRepository;
+    private final MatchSideStatsService sideStatsService;
 
     public MatchController(MatchQueryService matchQueryService,
                            MatchFetchJobService jobService,
@@ -46,7 +48,9 @@ public class MatchController {
                            MatchReprocessService matchReprocessService,
                            PlayerTrendService trendService,
                            PlayerDashboardService dashboardService,
-                           PlayerRepository playerRepository) {
+                           PlayerRepository playerRepository,
+                           MatchSideStatsService sideStatsService) {
+        this.sideStatsService = sideStatsService;
         this.matchQueryService = matchQueryService;
         this.jobService = jobService;
         this.demoParserClientService = demoParserClientService;
@@ -193,6 +197,21 @@ public class MatchController {
                     "metricasValidas", BaselineService.metricasSuportadas()
             ));
         }
+    }
+
+    /**
+     * Desempenho do jogador separado por lado (CT e TR) nesta partida.
+     *
+     * <p>Sob demanda: calcular os dois lados dos dez jogadores em toda visita
+     * à página triplicaria o trabalho para uma informação que quase sempre não
+     * é aberta.</p>
+     */
+    @GetMapping("/matches/{id}/players/{steamId}/sides")
+    public ResponseEntity<?> lados(@PathVariable("id") Long id,
+                                   @PathVariable("steamId") String steamId) {
+        return sideStatsService.calcular(id, steamId)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /**
