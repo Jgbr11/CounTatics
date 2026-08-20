@@ -15,13 +15,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MatchPageTemplateTest {
 
+    /** Barra real, para o teste exercitar a montagem como a página faz. */
+    private static final String NAV = PageNav.render("/p/token-de-teste",
+            java.util.List.of(PageNav.item("/p/token-de-teste", "Perfil", true)));
+
     private static final String JSON = """
             {"mapName":"de_dust2","scoreCT":13,"scoreTR":9,"players":[]}""";
 
     @Test
     @DisplayName("nenhum marcador de montagem sobra no HTML final")
     void naoSobraMarcador() {
-        String html = MatchPageTemplate.render(JSON);
+        String html = MatchPageTemplate.render(JSON, NAV);
 
         // Cobre erro de digitação em qualquer um dos marcadores de uma vez só,
         // inclusive nos que forem acrescentados depois deste teste.
@@ -32,7 +36,7 @@ class MatchPageTemplateTest {
     @Test
     @DisplayName("o tema compartilhado e as fontes entram na página")
     void embuteTemaEFontes() {
-        String html = MatchPageTemplate.render(JSON);
+        String html = MatchPageTemplate.render(JSON, NAV);
 
         assertThat(html).contains("--neon:#B026FF");
         assertThat(html).contains("fonts.googleapis.com");
@@ -48,7 +52,7 @@ class MatchPageTemplateTest {
     @Test
     @DisplayName("a URL das fontes fica numa linha só, com as três famílias")
     void urlDasFontesNaoQuebra() {
-        String html = MatchPageTemplate.render(JSON);
+        String html = MatchPageTemplate.render(JSON, NAV);
 
         String linhaDaUrl = html.lines()
                 .filter(l -> l.contains("fonts.googleapis.com/css2"))
@@ -63,10 +67,24 @@ class MatchPageTemplateTest {
                 .endsWith(">");
     }
 
+    /**
+     * A navegação é montada em Java justamente para existir antes de o script
+     * rodar. Se o marcador deixasse de ser substituído, a página perderia a
+     * saída para o resto do sistema sem nenhum erro.
+     */
+    @Test
+    @DisplayName("a barra de navegação entra no HTML")
+    void embuteNavegacao() {
+        String html = MatchPageTemplate.render(JSON, NAV);
+
+        assertThat(html).contains("class=\"nav\"");
+        assertThat(html).contains("/p/token-de-teste");
+    }
+
     @Test
     @DisplayName("os dados da partida entram no lugar do marcador")
     void embuteOsDados() {
-        String html = MatchPageTemplate.render(JSON);
+        String html = MatchPageTemplate.render(JSON, NAV);
 
         assertThat(html).contains("const DATA = {\"mapName\":\"de_dust2\"");
     }
@@ -80,7 +98,7 @@ class MatchPageTemplateTest {
     @DisplayName("fechamento de tag dentro do JSON é neutralizado")
     void neutralizaFechamentoDeScript() {
         String html = MatchPageTemplate.render(
-                "{\"playerName\":\"</script><script>alert(1)</script>\"}");
+                "{\"playerName\":\"</script><script>alert(1)</script>\"}", NAV);
 
         assertThat(html).doesNotContain("</script><script>alert(1)");
         assertThat(html).contains("<\\/script>");

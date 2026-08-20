@@ -14,11 +14,11 @@ final class DashboardPageTemplate {
     private DashboardPageTemplate() {
     }
 
-    static String render(String dashboardJson) {
+    static String render(String dashboardJson, String nav) {
         // Mesma proteção da página da partida: um nome de jogador contendo
         // "</script>" fecharia a tag mais cedo e o resto do JSON viraria HTML.
         String safeJson = dashboardJson.replace("</", "<\\/");
-        return HTML.replace("__DASH_DATA__", safeJson);
+        return HTML.replace("__NAV__", nav).replace("__DASH_DATA__", safeJson);
     }
 
     private static final String PAGE_CSS = """
@@ -74,6 +74,7 @@ final class DashboardPageTemplate {
               </style>
             </head>
             <body>
+            __NAV__
             <div class="wrap">
 
               <header class="hdr">

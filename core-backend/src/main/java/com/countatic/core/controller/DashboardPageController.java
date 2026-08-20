@@ -56,7 +56,7 @@ public class DashboardPageController {
             String json = objectMapper.writeValueAsString(painel.get());
             return ResponseEntity.ok()
                     .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-                    .body(DashboardPageTemplate.render(json));
+                    .body(DashboardPageTemplate.render(json, nav(token, "perfil")));
         } catch (Exception e) {
             log.error("Falha ao renderizar o painel {}: {}", token, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -65,5 +65,46 @@ public class DashboardPageController {
                             "O jogador existe, mas houve um erro ao gerar esta página. "
                                     + "Tente novamente em instantes."));
         }
+    }
+
+    /**
+     * Lista das partidas do jogador, com filtro por mapa.
+     *
+     * <p>Usa o mesmo serviço do painel, com a janela cheia: a página existe
+     * justamente para ver além das últimas vinte.</p>
+     */
+    @GetMapping(value = "/p/{token}/partidas", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> partidas(@PathVariable("token") String token) {
+        Optional<PlayerDashboardDTO> painel =
+                dashboardService.porToken(token, PlayerDashboardService.PARTIDAS_MAXIMO);
+
+        if (painel.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
+                    .body(StatusPage.render("404", "Painel não encontrado",
+                            "O link pode estar incorreto ou o jogador não está mais cadastrado."));
+        }
+
+        try {
+            String json = objectMapper.writeValueAsString(painel.get());
+            return ResponseEntity.ok()
+                    .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
+                    .body(MatchListPageTemplate.render(json, nav(token, "partidas")));
+        } catch (Exception e) {
+            log.error("Falha ao renderizar a lista de partidas {}: {}", token, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
+                    .body(StatusPage.render("500", "Falha ao montar a lista",
+                            "Houve um erro ao gerar esta página. Tente novamente em instantes."));
+        }
+    }
+
+    /** Barra de navegação das telas do jogador. */
+    static String nav(String token, String ativa) {
+        String perfil = "/p/" + token;
+        return PageNav.render(perfil, java.util.List.of(
+                PageNav.item(perfil, "Perfil", "perfil".equals(ativa)),
+                PageNav.item(perfil + "/partidas", "Partidas", "partidas".equals(ativa))
+        ));
     }
 }

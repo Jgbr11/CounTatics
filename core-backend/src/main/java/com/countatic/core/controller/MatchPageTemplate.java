@@ -16,13 +16,13 @@ final class MatchPageTemplate {
     private MatchPageTemplate() {
     }
 
-    static String render(String matchJson) {
+    static String render(String matchJson, String nav) {
         // O JSON é gerado pelo Jackson, então já vem com aspas e barras
         // escapadas corretamente. O único risco em contexto <script> é a
         // sequência "</script>" aparecendo dentro de uma string (ex: num nome
         // de jogador). Quebrá-la neutraliza o fechamento precoce da tag.
         String safeJson = matchJson.replace("</", "<\\/");
-        return HTML.replace("__MATCH_DATA__", safeJson);
+        return HTML.replace("__NAV__", nav).replace("__MATCH_DATA__", safeJson);
     }
 
     /** CSS exclusivo desta tela. O vocabulário compartilhado está em {@link HudTheme#CSS}. */
@@ -134,6 +134,7 @@ final class MatchPageTemplate {
               </style>
             </head>
             <body>
+            __NAV__
             <div class="wrap">
 
               <header class="hdr">

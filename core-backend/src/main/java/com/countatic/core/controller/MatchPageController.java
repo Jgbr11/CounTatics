@@ -50,7 +50,7 @@ public class MatchPageController {
             String json = objectMapper.writeValueAsString(detail.get());
             return ResponseEntity.ok()
                     .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-                    .body(MatchPageTemplate.render(json));
+                    .body(MatchPageTemplate.render(json, nav(detail.get().getOwnerToken())));
         } catch (Exception e) {
             log.error("Falha ao renderizar a página da partida {}: {}", token, e.getMessage(), e);
             // A partida existe; quem falhou foi a renderização. Dizer "o link
@@ -65,4 +65,23 @@ public class MatchPageController {
         }
     }
 
+
+    /**
+     * Navegação da página da partida.
+     *
+     * <p>Sem um participante cadastrado não há perfil para onde voltar, e a
+     * barra fica só com a marca — melhor que um link quebrado. Acontece de
+     * verdade: dá para abrir o relatório de uma partida em que ninguém do
+     * lobby usa o sistema.</p>
+     */
+    private static String nav(String ownerToken) {
+        if (ownerToken == null || ownerToken.isBlank()) {
+            return PageNav.render(null);
+        }
+        String perfil = "/p/" + ownerToken;
+        return PageNav.render(perfil, java.util.List.of(
+                PageNav.item(perfil, "Perfil", false),
+                PageNav.item(perfil + "/partidas", "Partidas", false)
+        ));
+    }
 }
