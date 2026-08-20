@@ -167,11 +167,15 @@ final class MatchListPageTemplate {
 
                 tb.appendChild(tr);
               });
+
+              Motion.entrar(tb, "tr");
             }
 
             oferecerVoltaAPartida();
 
             el("titulo").textContent = "Partidas de " + (DASH.playerName || DASH.steamId64);
+            Motion.revelar(".panel");
+
             renderFiltros();
             renderLista();
             </script>

@@ -251,6 +251,7 @@ final class DashboardPageTemplate {
                   principal: c.principal,
                 });
               }).join("") + `</div>`;
+              Motion.entrar(el("medias"), ".chip");
             }
 
             /**
@@ -304,6 +305,7 @@ final class DashboardPageTemplate {
                   </tr></thead>
                   <tbody>${linhas}</tbody>
                 </table></div>`;
+              Motion.entrar(el("mapas"), "tbody tr");
             }
 
             function renderPartidas() {
@@ -336,6 +338,8 @@ final class DashboardPageTemplate {
 
                 tb.appendChild(tr);
               });
+
+              Motion.entrar(tb, "tr");
             }
 
             // ─── Evolução ────────────────────────────────────────────
@@ -378,6 +382,8 @@ final class DashboardPageTemplate {
             }
 
             oferecerVoltaAPartida();
+
+            Motion.revelar(".panel");
 
             renderCabecalho();
             renderMedias();

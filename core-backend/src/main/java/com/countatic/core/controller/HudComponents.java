@@ -27,6 +27,187 @@ final class HudComponents {
     /** Vai dentro do {@code <script>}, antes do código específico da página. */
     static final String JS = """
             // ═══════════════════════════════════════════════════════════
+            //  Movimento
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Motor de animação da interface.
+             *
+             * São dois mecanismos, e cada um resolve um caso que o outro não
+             * resolve bem:
+             *
+             *  - `revelar` usa IntersectionObserver e serve para o que já está
+             *    na marcação quando a página abre (os painéis). Ele cobre de
+             *    graça os dois comportamentos: o que está visível anima na
+             *    abertura, o que está abaixo anima ao chegar na tela.
+             *
+             *  - `entrar` anima o que o JS insere depois (cards, linhas,
+             *    destaques). Aqui o observer não serve: o elemento nasce já
+             *    dentro da área visível e o gesto certo é animar na inserção.
+             *
+             * Tudo passa por MOVIMENTO_OK. Quem configurou "menos movimento" no
+             * sistema recebe a página pronta, sem transição e sem contagem — e
+             * a informação aparece igual, que é o ponto.
+             */
+            const MOVIMENTO_OK = !(window.matchMedia
+              && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+            const Motion = (() => {
+
+              /* O escalonamento é contado por quadro: os elementos que entram
+                 juntos se encadeiam, e os que entram depois recomeçam do zero.
+                 Sem isso, rolar a página rápido acumularia atraso e os últimos
+                 painéis apareceriam segundos atrasados. */
+              let lote = 0, quadroDoLote = -1;
+
+              /* O observer já entregou alguma coisa? A revelação é enfeite, mas
+                 o conteúdo por trás dela não é: num ambiente onde o observer
+                 não dispare, a página ficaria em branco com o JS funcionando
+                 perfeitamente. A rede abaixo cobre esse caso — e some sozinha
+                 assim que o observer dá sinal de vida, para não atropelar a
+                 revelação por scroll de quem está com tudo funcionando. */
+              let observerVivo = false;
+
+              function atraso() {
+                const agora = Math.floor(performance.now() / 100);
+                if (agora !== quadroDoLote) { quadroDoLote = agora; lote = 0; }
+                // Teto de seis: passar disso vira espera, não encadeamento.
+                return Math.min(lote++, 6);
+              }
+
+              const obs = ("IntersectionObserver" in window) ? new IntersectionObserver(
+                (entradas, self) => {
+                  observerVivo = true;
+                  entradas.forEach(e => {
+                    if (!e.isIntersecting) return;
+                    self.unobserve(e.target);
+                    mostrar(e.target);
+                  });
+                },
+                // Começa um pouco antes de entrar de fato: a animação termina
+                // quando o bloco está de vez na tela, e não depois.
+                { rootMargin: "0px 0px -8% 0px", threshold: 0.05 }
+              ) : null;
+
+              let rede = 0;
+
+              function mostrar(el) {
+                el.style.setProperty("--atraso", (atraso() * 55) + "ms");
+                el.classList.add("is-visivel");
+                contarDentro(el);
+              }
+
+              return {
+                /** Painéis e blocos que já existem na marcação. */
+                revelar(seletor, raiz) {
+                  const alvos = (raiz || document).querySelectorAll(seletor);
+                  alvos.forEach(el => {
+                    if (!MOVIMENTO_OK || !obs) { contarDentro(el); return; }
+                    el.classList.add("revelar");
+                    obs.observe(el);
+                  });
+
+                  clearTimeout(rede);
+                  rede = setTimeout(() => {
+                    if (observerVivo) return;
+                    document.querySelectorAll(".revelar:not(.is-visivel)")
+                            .forEach(mostrar);
+                  }, 1500);
+                },
+
+                /**
+                 * Conteúdo recém-inserido pelo JS.
+                 *
+                 * Chamar depois do innerHTML: os elementos precisam existir.
+                 */
+                entrar(raiz, seletor) {
+                  const alvos = raiz.querySelectorAll(seletor || ":scope > *");
+                  alvos.forEach((el, i) => {
+                    if (MOVIMENTO_OK) {
+                      el.style.setProperty("--atraso", (Math.min(i, 10) * 40) + "ms");
+                      el.classList.add("entrar");
+                    }
+                  });
+                  contarDentro(raiz);
+                },
+
+                contarDentro,
+                contar,
+              };
+
+              function contarDentro(raiz) {
+                raiz.querySelectorAll("[data-contar]").forEach(contar);
+                crescer(raiz);
+              }
+
+              /**
+               * Barras que nascem em zero e crescem até o valor.
+               *
+               * A largura final vem no atributo, não no style: aplicá-la um
+               * quadro depois é o que dá ao navegador um estado inicial de onde
+               * transicionar. Definir os dois no mesmo quadro faria a barra
+               * aparecer pronta.
+               */
+              function crescer(raiz) {
+                const barras = raiz.querySelectorAll("[data-largura]");
+                if (!barras.length) return;
+
+                barras.forEach(b => {
+                  const w = b.dataset.largura;
+                  delete b.dataset.largura;
+                  if (!MOVIMENTO_OK) { b.style.width = w; return; }
+                  requestAnimationFrame(() => requestAnimationFrame(() => {
+                    b.style.width = w;
+                  }));
+                });
+              }
+
+              /**
+               * Faz o número subir até o valor final.
+               *
+               * Lê o próprio texto já renderizado em vez de receber o número:
+               * assim o formato — casas decimais, sinal de porcentagem, "—"
+               * para métrica ausente — continua sendo decidido em um lugar só,
+               * por quem monta o card.
+               *
+               * Métrica ausente não conta de zero até nada: ela nem entra aqui.
+               */
+              function contar(el) {
+                if (el.dataset.contado === "1") return;
+                el.dataset.contado = "1";
+
+                const bruto = el.textContent.trim();
+                const m = /^(-?\\d+(?:\\.\\d+)?)(.*)$/.exec(bruto);
+                if (!m || !MOVIMENTO_OK) return;
+
+                const alvo = parseFloat(m[1]);
+                const sufixo = m[2] || "";
+                const casas = (m[1].split(".")[1] || "").length;
+
+                // Números pequenos e inteiros (uma contagem de kills, por
+                // exemplo) não ganham nada em contar: o efeito só aparece
+                // quando há distância para percorrer.
+                if (!isFinite(alvo) || Math.abs(alvo) < 3) return;
+
+                const inicio = performance.now();
+                const duracao = 700;
+
+                function passo(agora) {
+                  const t = Math.min((agora - inicio) / duracao, 1);
+                  // Mesma curva do CSS: expo-out.
+                  const e = 1 - Math.pow(2, -10 * t);
+                  const v = alvo * (t === 1 ? 1 : e);
+                  el.textContent = v.toFixed(casas) + sufixo;
+                  if (t < 1) requestAnimationFrame(passo);
+                  else el.textContent = bruto;
+                }
+
+                el.textContent = (0).toFixed(casas) + sufixo;
+                requestAnimationFrame(passo);
+              }
+            })();
+
+            // ═══════════════════════════════════════════════════════════
             //  Utilitários compartilhados
             // ═══════════════════════════════════════════════════════════
 
@@ -188,7 +369,7 @@ final class HudComponents {
               return `<div class="${classes.join(" ")}"${attrChave}>
                   <div class="cut-in">
                     <div class="k"${attrAjuda}>${icone ? icon(icone, 13) : ""}<span>${esc(label)}</span></div>
-                    <div class="v">${sig}${esc(valor)}${pr}</div>
+                    <div class="v">${sig}<span class="num" data-contar>${esc(valor)}</span>${pr}</div>
                     ${spark || ""}
                   </div>
                 </div>`;
@@ -530,7 +711,7 @@ final class HudComponents {
               return `<div class="kdbar" role="img"
                            aria-label="${k} kills contra ${d} mortes">
                   <div class="kdbar-track">
-                    <span class="kdbar-k" style="width:${pk.toFixed(1)}%"></span>
+                    <span class="kdbar-k" data-largura="${pk.toFixed(1)}%" style="width:0"></span>
                   </div>
                   <div class="kdbar-legend">
                     <span class="up">${k} kills</span>

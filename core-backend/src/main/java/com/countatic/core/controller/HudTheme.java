@@ -711,6 +711,68 @@ final class HudTheme {
             .ct{color:var(--ct)}
             .tr{color:var(--tr)}
 
+            /* ───────────────────────────────────────────────────────────
+               MOVIMENTO
+
+               Uma curva só governa a página inteira: sai rápido e desacelera
+               por muito tempo. É ela que produz a sensação de "fluido" — o
+               elemento parece ter peso e assentar, em vez de deslizar a
+               velocidade constante como um menu de sistema.
+
+               O deslocamento de entrada é curto de propósito (12–18px). O que
+               vende o movimento é a curva e o encadeamento, não a distância;
+               entrada longa vira espera, e esta é uma página que a pessoa abre
+               para ler um número.
+               ─────────────────────────────────────────────────────────── */
+            :root{
+              --ease:cubic-bezier(.16,1,.3,1);
+              --ease-curto:cubic-bezier(.4,0,.2,1);
+              --t-rapido:140ms;
+              --t-medio:280ms;
+              --t-lento:560ms;
+              --stagger:55ms;
+            }
+
+            /* Tudo daqui para baixo é condicional: quem pediu menos movimento
+               recebe a página já assentada, nunca uma versão invisível
+               esperando script. */
+            @media (prefers-reduced-motion:no-preference){
+
+              /* 1. Estrutura — os painéis, que já existem na marcação.
+                 Revelados por IntersectionObserver conforme entram na tela. */
+              .revelar{opacity:0;transform:translateY(18px)}
+              .revelar.is-visivel{
+                opacity:1;transform:none;
+                transition:opacity var(--t-lento) var(--ease) var(--atraso,0ms),
+                           transform var(--t-lento) var(--ease) var(--atraso,0ms);
+              }
+
+              /* 2. Conteúdo — cards, linhas e itens que o JS insere depois.
+                 Animação na inserção, escalonada pelo índice. */
+              .entrar{animation:entrar var(--t-lento) var(--ease) both;
+                      animation-delay:var(--atraso,0ms)}
+
+              @keyframes entrar{
+                from{opacity:0;transform:translateY(12px) scale(.985)}
+                to  {opacity:1;transform:none}
+              }
+
+              /* O cabeçalho não espera scroll: ele já está na tela quando a
+                 página abre, e é o primeiro passo da sequência. */
+              .hdr,.nav{animation:entrar var(--t-medio) var(--ease-curto) both}
+              .nav{animation-delay:0ms}
+              .hdr{animation-delay:60ms}
+            }
+
+            /* Números contados precisam de largura estável: sem isto o card
+               "pula" a cada quadro, porque cada dígito tem largura diferente
+               na Orbitron. */
+            .chip .v,.record,.hl-pts b{font-variant-numeric:tabular-nums}
+
+            /* Barras crescem a partir da origem em vez de aparecer prontas —
+               o valor "chega", que é o mesmo gesto do número contado. */
+            .bar > i,.kdbar-k{transition:width var(--t-lento) var(--ease)}
+
             /* Sinal de forma que acompanha toda cor de estado.
                É o que faz o indicador continuar legível para quem não
                distingue verde de vermelho — e, de quebra, para quem está no

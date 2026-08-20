@@ -420,7 +420,7 @@ final class MatchPageTemplate {
                         <span class="dim"> · média ${txt(c.media)} · top ${(100 - p).toFixed(0)}%</span>
                       </span>
                     </div>
-                    <div class="bar"><i class="${cls}" style="width:${p}%"></i></div>
+                    <div class="bar"><i class="${cls}" data-largura="${p}%" style="width:0"></i></div>
                   </div>`;
               }
 
@@ -509,6 +509,8 @@ final class MatchPageTemplate {
 
                 tb.appendChild(tr);
               });
+
+              Motion.entrar(tb, "tr");
             }
 
             /** Índice do jogador selecionado — o toggle de lado precisa saber quem é. */
@@ -597,6 +599,7 @@ final class MatchPageTemplate {
               }
 
               el("detail").innerHTML = html;
+              Motion.entrar(el("detail"), ".chip");
 
               // As dicas saíram de baixo de cada categoria e passaram a um
               // painel próprio, ordenado por gravidade. Espalhadas, um elogio e
@@ -606,6 +609,7 @@ final class MatchPageTemplate {
               el("coachTitle").textContent =
                 "O que treinar — " + (p.playerName || p.steamId64);
               el("coach").innerHTML = CoachPanel(dicas);
+              Motion.entrar(el("coach"), ".coach-item");
               el("banner").innerHTML = CoachBanner(dicas);
 
               // Estes quatro olham o histórico e a partida como um todo;
@@ -672,6 +676,7 @@ final class MatchPageTemplate {
 
                 if (alvo.dataset.pedido !== pedido) return;
                 alvo.innerHTML = RoundHighlights(dados.destaques);
+                Motion.entrar(alvo, ".hl-item");
               } catch (e) {
                 if (alvo.dataset.pedido !== pedido) return;
                 alvo.innerHTML =
@@ -795,6 +800,10 @@ final class MatchPageTemplate {
                 alvo.innerHTML = `<p class="hint">Não foi possível carregar a evolução agora.</p>`;
               }
             }
+
+            // Os painéis já existem na marcação: quem está na tela anima na
+            // abertura, quem está abaixo anima ao ser alcançado pelo scroll.
+            Motion.revelar(".panel");
 
             renderHeader();
             renderRows();
