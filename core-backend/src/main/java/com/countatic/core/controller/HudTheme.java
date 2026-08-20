@@ -61,7 +61,7 @@ final class HudTheme {
      * <p>Vai dentro de {@code <style>} — sem as tags, para a página poder
      * concatenar o CSS dela na sequência.</p>
      */
-    static final String CSS = """
+    private static final String BASE = """
             /* ───────────────────────────────────────────────────────────
                TOKENS
                Uma única fonte de verdade para cor, fonte e geometria.
@@ -117,7 +117,7 @@ final class HudTheme {
             body{
               margin:0;
               min-height:100vh;
-              background:var(--bg);
+background:var(--bg);
               color:var(--text);
               font:400 16px/1.6 var(--f-body);
               -webkit-font-smoothing:antialiased;
@@ -711,6 +711,8 @@ final class HudTheme {
             .ct{color:var(--ct)}
             .tr{color:var(--tr)}
 
+__FUNDO3D_CSS__
+
             /* ───────────────────────────────────────────────────────────
                MOVIMENTO
 
@@ -801,4 +803,8 @@ final class HudTheme {
               body::after{opacity:.3}
             }
             """;
+
+    /** Vocabulário completo: o tema com o CSS do fundo 3D costurado. */
+    static final String CSS = BASE.replace("__FUNDO3D_CSS__", HudBackdrop.CSS);
+
 }

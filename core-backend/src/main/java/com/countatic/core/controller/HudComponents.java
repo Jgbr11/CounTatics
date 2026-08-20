@@ -24,8 +24,7 @@ final class HudComponents {
     private HudComponents() {
     }
 
-    /** Vai dentro do {@code <script>}, antes do código específico da página. */
-    static final String JS = """
+    private static final String COMPONENTES = """
             // ═══════════════════════════════════════════════════════════
             //  Movimento
             // ═══════════════════════════════════════════════════════════
@@ -1051,4 +1050,13 @@ final class HudComponents {
               return saida;
             }
             """;
+
+    /**
+     * Vai dentro do {@code <script>}, antes do código específico da página.
+     *
+     * <p>O fundo 3D vem no fim: ele lê {@code MOVIMENTO_OK}, declarado acima,
+     * e precisa que o {@code body} já exista quando roda.</p>
+     */
+    static final String JS = COMPONENTES + "\n" + HudBackdrop.JS;
+
 }
