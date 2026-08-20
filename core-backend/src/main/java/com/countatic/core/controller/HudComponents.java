@@ -304,6 +304,78 @@ final class HudComponents {
             }
 
             // ═══════════════════════════════════════════════════════════
+            //  WeaponTable
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Nomes legíveis das armas.
+             *
+             * O parser grava o identificador da Valve ("m4a1_silencer"), que é
+             * estável e serve de chave — mas ninguém chama a arma assim. As que
+             * não estiverem aqui caem no próprio id, o que é feio mas correto:
+             * melhor mostrar "negev" do que esconder a linha.
+             */
+            const NOMES_ARMA = {
+              ak47:"AK-47", m4a1:"M4A4", m4a1_silencer:"M4A1-S", awp:"AWP",
+              galilar:"Galil", famas:"FAMAS", sg556:"SG 553", aug:"AUG",
+              ssg08:"SSG 08", scar20:"SCAR-20", g3sg1:"G3SG1",
+              deagle:"Desert Eagle", glock:"Glock-18", usp_silencer:"USP-S",
+              hkp2000:"P2000", p250:"P250", fiveseven:"Five-SeveN",
+              tec9:"Tec-9", cz75a:"CZ75-Auto", elite:"Dual Berettas",
+              revolver:"R8 Revolver",
+              mp9:"MP9", mp7:"MP7", mp5sd:"MP5-SD", mac10:"MAC-10",
+              ump45:"UMP-45", p90:"P90", bizon:"PP-Bizon",
+              nova:"Nova", xm1014:"XM1014", mag7:"MAG-7", sawedoff:"Sawed-Off",
+              m249:"M249", negev:"Negev",
+              hegrenade:"Granada HE", molotov:"Molotov", incgrenade:"Incendiária",
+              knife:"Faca", taser:"Zeus", c4:"C4", world:"Queda",
+            };
+
+            const nomeArma = id => NOMES_ARMA[id] || id;
+
+            /**
+             * Tabela de desempenho por arma.
+             *
+             * Ordenada por kills — a arma que mais matou descreve como o
+             * jogador jogou a partida. Precisão e headshot só aparecem quando
+             * há amostra; um traço é mais honesto que "0%" ou "100%" vindos de
+             * três tiros.
+             */
+            function WeaponTable(armas) {
+              const lista = (armas || []).filter(a => a.kills > 0 || a.tiros > 0);
+              if (!lista.length) {
+                return `<p class="hint">Sem uso de arma registrado nesta partida.</p>`;
+              }
+
+              const linhas = lista.map(a => {
+                const hs = typeof a.headshotPercentage === "number"
+                  ? a.headshotPercentage.toFixed(0) + "%" : "—";
+                const acc = typeof a.accuracy === "number"
+                  ? a.accuracy.toFixed(0) + "%" : "—";
+                return `<tr>
+                    <td>${esc(nomeArma(a.id))}</td>
+                    <td>${a.kills}</td>
+                    <td>${esc(hs)}</td>
+                    <td>${a.damage}</td>
+                    <td>${a.tiros || "—"}</td>
+                    <td>${esc(acc)}</td>
+                  </tr>`;
+              }).join("");
+
+              return `<div class="scroll"><table class="armas">
+                  <thead><tr>
+                    <th scope="col">Arma</th>
+                    <th scope="col">Kills</th>
+                    <th scope="col">HS</th>
+                    <th scope="col">Dano</th>
+                    <th scope="col">Tiros</th>
+                    <th scope="col" title="Disparos que causaram dano. Só aparece com tiros suficientes.">Acerto</th>
+                  </tr></thead>
+                  <tbody>${linhas}</tbody>
+                </table></div>`;
+            }
+
+            // ═══════════════════════════════════════════════════════════
             //  Sparkline
             // ═══════════════════════════════════════════════════════════
 

@@ -86,6 +86,13 @@ final class MatchPageTemplate {
 
             .hint{color:var(--muted);font-size:.82rem;margin:.9rem 0 0}
 
+            /* A tabela de armas herda o estilo geral, mas sem o cursor de
+               seleção e a barra de status — nenhuma linha é clicável aqui. */
+            table.armas{min-width:520px}
+            table.armas tbody tr{cursor:default}
+            table.armas tbody td:first-child{box-shadow:none;
+                                             font-family:var(--f-body);font-weight:600}
+
             /* Alternador de lado. Cada botão herda a cor do time no estado
                ativo, para o recorte em vigor ser óbvio sem ler o rótulo. */
             .lados{display:flex;gap:.35rem;order:2}
@@ -188,6 +195,13 @@ final class MatchPageTemplate {
                     Contadores sem juízo de valor ficam neutros.
                   </p>
                   <div id="detail" aria-live="polite"></div>
+                </div>
+              </section>
+
+              <section class="panel cut">
+                <div class="cut-in">
+                  <div class="panel-head"><h2 id="armasTitle">Armas</h2></div>
+                  <div id="armas" aria-live="polite"></div>
                 </div>
               </section>
 
@@ -592,6 +606,35 @@ final class MatchPageTemplate {
               if (rounds == null) {
                 renderTendencia(p);
                 carregarSparklines(p);
+                carregarArmas(p);
+              }
+            }
+
+            /**
+             * Desempenho por arma do jogador selecionado.
+             *
+             * Buscado sob demanda: percorrer os eventos dos dez jogadores em
+             * toda visita custaria caro para uma seção que nem sempre é lida.
+             */
+            async function carregarArmas(p) {
+              const alvo = el("armas");
+              el("armasTitle").textContent = "Armas — " + (p.playerName || p.steamId64);
+              alvo.innerHTML = `<p class="hint">Carregando…</p>`;
+
+              const pedido = p.steamId64;
+              alvo.dataset.pedido = pedido;
+
+              try {
+                const r = await fetch(`/api/matches/${DATA.matchId}`
+                                    + `/players/${encodeURIComponent(p.steamId64)}/weapons`);
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                const dados = await r.json();
+
+                if (alvo.dataset.pedido !== pedido) return;
+                alvo.innerHTML = WeaponTable(dados.armas);
+              } catch (e) {
+                if (alvo.dataset.pedido !== pedido) return;
+                alvo.innerHTML = `<p class="hint">Não foi possível carregar as armas agora.</p>`;
               }
             }
 

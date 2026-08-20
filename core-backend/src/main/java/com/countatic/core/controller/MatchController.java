@@ -10,6 +10,7 @@ import com.countatic.core.service.MatchFetchJobService;
 import com.countatic.core.service.MatchQueryService;
 import com.countatic.core.service.MatchReprocessService;
 import com.countatic.core.service.MatchSideStatsService;
+import com.countatic.core.service.WeaponStatsService;
 import com.countatic.core.service.PlayerDashboardService;
 import com.countatic.core.service.PlayerTrendService;
 import com.countatic.core.repository.PlayerRepository;
@@ -40,6 +41,7 @@ public class MatchController {
     private final PlayerDashboardService dashboardService;
     private final PlayerRepository playerRepository;
     private final MatchSideStatsService sideStatsService;
+    private final WeaponStatsService weaponStatsService;
 
     public MatchController(MatchQueryService matchQueryService,
                            MatchFetchJobService jobService,
@@ -49,8 +51,10 @@ public class MatchController {
                            PlayerTrendService trendService,
                            PlayerDashboardService dashboardService,
                            PlayerRepository playerRepository,
-                           MatchSideStatsService sideStatsService) {
+                           MatchSideStatsService sideStatsService,
+                           WeaponStatsService weaponStatsService) {
         this.sideStatsService = sideStatsService;
+        this.weaponStatsService = weaponStatsService;
         this.matchQueryService = matchQueryService;
         this.jobService = jobService;
         this.demoParserClientService = demoParserClientService;
@@ -197,6 +201,21 @@ public class MatchController {
                     "metricasValidas", BaselineService.metricasSuportadas()
             ));
         }
+    }
+
+    /**
+     * Desempenho do jogador por arma nesta partida.
+     *
+     * <p>Sob demanda pelo mesmo motivo do recorte por lado: percorrer os
+     * eventos dos dez jogadores em toda visita custaria caro para uma seção
+     * que nem sempre é aberta.</p>
+     */
+    @GetMapping("/matches/{id}/players/{steamId}/weapons")
+    public ResponseEntity<?> armas(@PathVariable("id") Long id,
+                                   @PathVariable("steamId") String steamId) {
+        return weaponStatsService.calcular(id, steamId)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /**
