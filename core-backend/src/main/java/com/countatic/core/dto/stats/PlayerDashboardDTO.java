@@ -57,7 +57,42 @@ public class PlayerDashboardDTO {
     /** Média da faixa para as mesmas métricas, quando há amostra. */
     private Map<String, Double> mediasDaFaixa;
 
+    /**
+     * Desempenho agregado por mapa, do mais jogado para o menos.
+     *
+     * <p>Cobre a mesma janela das médias — não o histórico inteiro. Misturar
+     * as duas escalas na mesma tela faria "ADR 84" e "ADR na Mirage 91"
+     * parecerem contraditórios quando na verdade contam períodos
+     * diferentes.</p>
+     */
+    private List<MapaResumo> porMapa;
+
     private List<PartidaResumo> partidas;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class MapaResumo {
+        private String mapName;
+        private int partidas;
+
+        private int vitorias;
+        private int derrotas;
+
+        /**
+         * Partidas sem resultado registrado.
+         *
+         * <p>Exposto em vez de somado a um dos lados, pela mesma razão do
+         * retrospecto geral: as partidas analisadas antes de o resultado
+         * passar a ser guardado dariam um saldo falso.</p>
+         */
+        private int resultadoDesconhecido;
+
+        /** Médias no mapa. {@code null} quando a métrica não foi medida em nenhuma. */
+        private Double kdRatio;
+        private Double adr;
+    }
 
     @Data
     @NoArgsConstructor

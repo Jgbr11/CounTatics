@@ -142,6 +142,7 @@ public class PlayerDashboardService {
         }
 
         return PlayerDashboardDTO.builder()
+                .porMapa(agregarPorMapa(ordenado))
                 .steamId64(jogador.getSteamId64())
                 .playerName(jogador.getDisplayName())
                 .partidasAnalisadas(ordenado.size())
@@ -155,6 +156,61 @@ public class PlayerDashboardService {
                 .mediasDaFaixa(mediasFaixa)
                 .partidas(partidas)
                 .build();
+    }
+
+    /**
+     * Agrega os mesmos desempenhos por mapa.
+     *
+     * <p>Reaproveita as linhas já carregadas: uma consulta por mapa devolveria
+     * exatamente estes registros de novo, agrupados de outro jeito.</p>
+     *
+     * <p>Devolve <b>vitórias e derrotas em números absolutos</b>, e não taxa de
+     * vitória. Numa amostra de duas partidas, "50%" e "1V 1D" dizem a mesma
+     * coisa — mas a porcentagem sugere uma precisão que não existe, e "100%"
+     * vindo de uma partida só é pior ainda.</p>
+     */
+    private List<PlayerDashboardDTO.MapaResumo> agregarPorMapa(List<PlayerMatchStats> linhas) {
+        Map<String, Acumulado> porMapa = new LinkedHashMap<>();
+
+        for (PlayerMatchStats s : linhas) {
+            String mapa = s.getMatch().getMapName();
+            if (mapa == null || mapa.isBlank()) continue;
+
+            Acumulado a = porMapa.computeIfAbsent(mapa, k -> new Acumulado());
+            a.partidas++;
+
+            if (Boolean.TRUE.equals(s.getWon())) a.vitorias++;
+            else if (Boolean.FALSE.equals(s.getWon())) a.derrotas++;
+            else a.desconhecidos++;
+
+            // Métrica ausente fica fora da média, como em todo o resto.
+            if (s.getKdRatio() != null) { a.somaKd += s.getKdRatio(); a.nKd++; }
+            if (s.getAdr() != null) { a.somaAdr += s.getAdr(); a.nAdr++; }
+        }
+
+        List<PlayerDashboardDTO.MapaResumo> saida = new ArrayList<>(porMapa.size());
+        porMapa.forEach((mapa, a) -> saida.add(PlayerDashboardDTO.MapaResumo.builder()
+                .mapName(mapa)
+                .partidas(a.partidas)
+                .vitorias(a.vitorias)
+                .derrotas(a.derrotas)
+                .resultadoDesconhecido(a.desconhecidos)
+                .kdRatio(a.nKd > 0 ? round2(a.somaKd / a.nKd) : null)
+                .adr(a.nAdr > 0 ? round2(a.somaAdr / a.nAdr) : null)
+                .build()));
+
+        // Mais jogado primeiro: é o mapa que mais explica o desempenho geral.
+        saida.sort(Comparator.comparingInt(PlayerDashboardDTO.MapaResumo::getPartidas).reversed()
+                .thenComparing(PlayerDashboardDTO.MapaResumo::getMapName));
+
+        return saida;
+    }
+
+    /** Contagens de um mapa antes de virarem médias. */
+    private static final class Acumulado {
+        int partidas, vitorias, derrotas, desconhecidos;
+        double somaKd, somaAdr;
+        int nKd, nAdr;
     }
 
     private static double round2(double v) {

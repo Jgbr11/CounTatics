@@ -50,7 +50,7 @@ public class MatchPageController {
             String json = objectMapper.writeValueAsString(detail.get());
             return ResponseEntity.ok()
                     .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-                    .body(MatchPageTemplate.render(json, nav(detail.get().getOwnerToken())));
+                    .body(MatchPageTemplate.render(json, nav(detail.get().getOwnerToken(), token)));
         } catch (Exception e) {
             log.error("Falha ao renderizar a página da partida {}: {}", token, e.getMessage(), e);
             // A partida existe; quem falhou foi a renderização. Dizer "o link
@@ -74,14 +74,17 @@ public class MatchPageController {
      * verdade: dá para abrir o relatório de uma partida em que ninguém do
      * lobby usa o sistema.</p>
      */
-    private static String nav(String ownerToken) {
+    private static String nav(String ownerToken, String matchToken) {
         if (ownerToken == null || ownerToken.isBlank()) {
             return PageNav.render(null);
         }
         String perfil = "/p/" + ownerToken;
         return PageNav.render(perfil, java.util.List.of(
                 PageNav.item(perfil, "Perfil", false),
-                PageNav.item(perfil + "/partidas", "Partidas", false)
+                PageNav.item(perfil + "/partidas", "Partidas", false),
+                // A própria página precisa aparecer na barra: sem ela, quem
+                // chega aqui vê dois destinos e nenhum indício de onde está.
+                PageNav.item("/m/" + matchToken, "Partida", true)
         ));
     }
 }

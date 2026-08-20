@@ -758,6 +758,9 @@ final class MatchPageTemplate {
             renderHeader();
             renderRows();
             select(0);
+
+            // Registra a visita para as outras telas oferecerem a volta.
+            lembrarPartida(DATA.publicToken, DATA.mapName);
             </script>
             </body>
             </html>

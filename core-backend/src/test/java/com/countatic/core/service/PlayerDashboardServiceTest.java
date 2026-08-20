@@ -155,13 +155,99 @@ class PlayerDashboardServiceTest {
                 .getPartidasAnalisadas()).isEqualTo(5);
     }
 
+    @Test
+    @DisplayName("por mapa agrupa e ordena do mais jogado para o menos")
+    void porMapaAgrupaEOrdena() {
+        Instant t = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        criar(t.minusSeconds(300), 80.0, Team.CT, true, "de_mirage", 1.2);
+        criar(t.minusSeconds(200), 90.0, Team.CT, false, "de_mirage", 0.8);
+        criar(t.minusSeconds(100), 70.0, Team.CT, true, "de_nuke", 1.0);
+
+        var mapas = dashboardService.porSteamId(STEAM_ID, 20).orElseThrow().getPorMapa();
+
+        assertThat(mapas).hasSize(2);
+
+        assertThat(mapas.get(0).getMapName()).isEqualTo("de_mirage");
+        assertThat(mapas.get(0).getPartidas()).isEqualTo(2);
+        assertThat(mapas.get(0).getVitorias()).isEqualTo(1);
+        assertThat(mapas.get(0).getDerrotas()).isEqualTo(1);
+        assertThat(mapas.get(0).getAdr()).isEqualTo(85.0);
+        assertThat(mapas.get(0).getKdRatio()).isEqualTo(1.0);
+
+        assertThat(mapas.get(1).getMapName()).isEqualTo("de_nuke");
+        assertThat(mapas.get(1).getPartidas()).isEqualTo(1);
+    }
+
+    /** Mesma regra do resto do sistema: ausente é ausente, não zero. */
+    @Test
+    @DisplayName("métrica ausente fica fora da média do mapa")
+    void ausenteNaoEntraNaMediaDoMapa() {
+        Instant t = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        criar(t.minusSeconds(200), 80.0, Team.CT, true, "de_mirage", 1.2);
+        criar(t.minusSeconds(100), null, Team.CT, true, "de_mirage", 1.2);
+
+        var mirage = dashboardService.porSteamId(STEAM_ID, 20).orElseThrow()
+                .getPorMapa().get(0);
+
+        // Duas partidas no mapa, mas a média de ADR sai de uma só.
+        assertThat(mirage.getPartidas()).isEqualTo(2);
+        assertThat(mirage.getAdr()).isEqualTo(80.0);
+    }
+
+    @Test
+    @DisplayName("mapa sem nenhuma métrica medida devolve média nula, não zero")
+    void semMetricaDevolveNulo() {
+        criar(Instant.now(), null, Team.CT, true, "de_ancient", null);
+
+        var mapa = dashboardService.porSteamId(STEAM_ID, 20).orElseThrow()
+                .getPorMapa().get(0);
+
+        assertThat(mapa.getAdr()).isNull();
+        assertThat(mapa.getKdRatio()).isNull();
+    }
+
+    @Test
+    @DisplayName("resultado desconhecido é contado à parte também por mapa")
+    void desconhecidoContadoAParteNoMapa() {
+        Instant t = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        criar(t.minusSeconds(200), 80.0, Team.CT, true, "de_mirage", 1.2);
+        criar(t.minusSeconds(100), 80.0, Team.CT, null, "de_mirage", 1.2);
+
+        var mirage = dashboardService.porSteamId(STEAM_ID, 20).orElseThrow()
+                .getPorMapa().get(0);
+
+        assertThat(mirage.getVitorias()).isEqualTo(1);
+        assertThat(mirage.getDerrotas()).isZero();
+        assertThat(mirage.getResultadoDesconhecido()).isEqualTo(1);
+    }
+
+    /** A agregação cobre a janela das médias, não o histórico inteiro. */
+    @Test
+    @DisplayName("por mapa respeita a mesma janela das médias")
+    void porMapaRespeitaAJanela() {
+        Instant t = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        criar(t.minusSeconds(300), 80.0, Team.CT, true, "de_antigo", 1.0);
+        criar(t.minusSeconds(200), 80.0, Team.CT, true, "de_mirage", 1.0);
+        criar(t.minusSeconds(100), 80.0, Team.CT, true, "de_mirage", 1.0);
+
+        var mapas = dashboardService.porSteamId(STEAM_ID, 2).orElseThrow().getPorMapa();
+
+        assertThat(mapas).hasSize(1);
+        assertThat(mapas.get(0).getMapName()).isEqualTo("de_mirage");
+    }
+
     // ═══════════════════════════════════════════════════════════════
 
     private void criar(Instant jogadaEm, Double adr, Team lado, Boolean venceu) {
+        criar(jogadaEm, adr, lado, venceu, "de_mirage", 1.1);
+    }
+
+    private void criar(Instant jogadaEm, Double adr, Team lado, Boolean venceu,
+                       String mapa, Double kd) {
         Match m = matchRepository.save(Match.builder()
                 .demoFileHash("hash-" + jogadaEm.toEpochMilli())
                 .demoFileName("t.dem")
-                .mapName("de_mirage")
+                .mapName(mapa)
                 .durationSeconds(1800)
                 .scoreCT(13).scoreTR(8)
                 .totalRounds(21).tickRate(64)
@@ -175,7 +261,7 @@ class PlayerDashboardServiceTest {
                 .steamId64(STEAM_ID)
                 .roundsPlayed(21)
                 .adr(adr)
-                .kdRatio(1.1)
+                .kdRatio(kd)
                 .kills(20).deaths(18)
                 .playerSide(lado)
                 .won(venceu)

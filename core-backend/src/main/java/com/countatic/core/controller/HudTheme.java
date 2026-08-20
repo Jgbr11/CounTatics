@@ -196,6 +196,12 @@ final class HudTheme {
             .nav-links a:hover{color:var(--text);border-color:var(--line)}
             /* O estado ativo se apoia no aria-current, não numa classe: assim
                o visual e o leitor de tela não podem divergir. */
+            /* Atalho de volta: cor da marca e sem margem à esquerda, para
+               ler como "sair daqui" e não como mais um destino da lista. */
+            .nav-links a.nav-volta{color:var(--neon);border-color:var(--line);
+                                   margin-right:.5rem}
+            .nav-links a.nav-volta:hover{background:var(--tint)}
+
             .nav-links a[aria-current="page"]{
               color:var(--neon);border-color:var(--line);background:var(--tint)}
 

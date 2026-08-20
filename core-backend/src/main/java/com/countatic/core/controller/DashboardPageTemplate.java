@@ -56,6 +56,15 @@ final class DashboardPageTemplate {
             tbody a{color:var(--text);text-decoration:none;font-family:var(--f-body);font-weight:600}
             tbody a:hover{color:var(--neon);text-decoration:underline}
 
+            /* A tabela de mapas tem outra grade: só o nome do mapa é texto,
+               e a coluna V-D precisa caber o "(+n sem resultado)". */
+            table.mapas{min-width:460px}
+            table.mapas thead th:nth-child(2){text-align:right}
+            table.mapas tbody td:nth-child(2){text-align:right}
+            table.mapas thead th:nth-child(3),
+            table.mapas tbody td:nth-child(3){text-align:left}
+            table.mapas tbody td:nth-child(3) .dim{padding:0 .15rem}
+
             .hint{color:var(--muted);font-size:.82rem;margin:.9rem 0 0}
             footer{position:relative;z-index:2;text-align:center;color:var(--muted);
                    font-size:.76rem;letter-spacing:.08em;padding-bottom:2.5rem}
@@ -107,6 +116,13 @@ final class DashboardPageTemplate {
                   <div class="trend-tabs" id="trendTabs" role="group"
                        aria-label="Métrica do gráfico de evolução"></div>
                   <div id="trend" aria-live="polite"></div>
+                </div>
+              </section>
+
+              <section class="panel cut">
+                <div class="cut-in">
+                  <div class="panel-head"><h2 id="mapasTitle">Por mapa</h2></div>
+                  <div id="mapas"></div>
                 </div>
               </section>
 
@@ -237,6 +253,59 @@ final class DashboardPageTemplate {
               }).join("") + `</div>`;
             }
 
+            /**
+             * Desempenho por mapa.
+             *
+             * Vitórias e derrotas em números absolutos, não em porcentagem:
+             * com duas partidas, "50%" sugere uma precisão que não existe, e
+             * "100%" vindo de uma única partida é pior ainda.
+             */
+            function renderMapas() {
+              const mapas = DASH.porMapa || [];
+
+              el("mapasTitle").textContent =
+                `Por mapa — últimas ${DASH.partidasAnalisadas} partidas`;
+
+              if (!mapas.length) {
+                el("mapas").innerHTML =
+                  `<p class="hint">Nenhuma partida analisada ainda.</p>`;
+                return;
+              }
+
+              const linhas = mapas.map(m => {
+                const kd = typeof m.kdRatio === "number" ? m.kdRatio.toFixed(2) : "—";
+                const adr = typeof m.adr === "number" ? m.adr.toFixed(1) : "—";
+
+                // A cor da linha segue o saldo, não a taxa: com poucas
+                // partidas o saldo é o que dá para afirmar.
+                const cls = m.vitorias > m.derrotas ? "is-win"
+                          : (m.derrotas > m.vitorias ? "is-loss" : "");
+
+                const obs = m.resultadoDesconhecido > 0
+                  ? ` <span class="dim">(+${m.resultadoDesconhecido} sem resultado)</span>`
+                  : "";
+
+                return `<tr class="${cls}">
+                    <td>${txt(m.mapName)}</td>
+                    <td>${m.partidas}</td>
+                    <td><span class="up">${m.vitorias}</span><span class="dim">-</span><span class="down">${m.derrotas}</span>${obs}</td>
+                    <td>${txt(kd)}</td>
+                    <td>${txt(adr)}</td>
+                  </tr>`;
+              }).join("");
+
+              el("mapas").innerHTML = `<div class="scroll"><table class="mapas">
+                  <thead><tr>
+                    <th scope="col">Mapa</th>
+                    <th scope="col">Partidas</th>
+                    <th scope="col">V-D</th>
+                    <th scope="col">K/D</th>
+                    <th scope="col">ADR</th>
+                  </tr></thead>
+                  <tbody>${linhas}</tbody>
+                </table></div>`;
+            }
+
             function renderPartidas() {
               const tb = el("rows");
               tb.innerHTML = "";
@@ -308,8 +377,11 @@ final class DashboardPageTemplate {
               }
             }
 
+            oferecerVoltaAPartida();
+
             renderCabecalho();
             renderMedias();
+            renderMapas();
             renderPartidas();
             renderTendencia();
             </script>

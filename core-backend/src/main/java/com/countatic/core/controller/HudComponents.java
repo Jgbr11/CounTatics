@@ -43,6 +43,53 @@ final class HudComponents {
             };
 
             // ═══════════════════════════════════════════════════════════
+            //  Última partida vista
+            //  A barra leva ao perfil e à lista, mas sair de uma partida
+            //  deixava o jogador sem volta em um clique — ele teria de
+            //  reencontrá-la na lista. Guardar a última vista resolve isso
+            //  com precisão, e não por aproximação: "a mais recente" nem
+            //  sempre é a que ele estava lendo.
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * sessionStorage, não localStorage: o atalho vale para a visita
+             * atual. Voltar amanhã e ser levado a uma partida de ontem seria
+             * confuso.
+             *
+             * Todo acesso é protegido — o armazenamento pode estar bloqueado
+             * (janela privada, arquivo local), e o atalho é conveniência: nunca
+             * pode derrubar a página.
+             */
+            const PARTIDA_VISTA = "countatic:ultimaPartida";
+
+            function lembrarPartida(token, rotulo) {
+              if (!token) return;
+              try {
+                sessionStorage.setItem(PARTIDA_VISTA, JSON.stringify({ token, rotulo }));
+              } catch (e) { /* sem armazenamento, sem atalho */ }
+            }
+
+            /** Acrescenta o atalho à barra, se houver partida lembrada. */
+            function oferecerVoltaAPartida() {
+              let dados = null;
+              try {
+                dados = JSON.parse(sessionStorage.getItem(PARTIDA_VISTA) || "null");
+              } catch (e) { return; }
+
+              if (!dados || !dados.token) return;
+
+              const links = document.querySelector(".nav-links");
+              if (!links) return;
+
+              const a = document.createElement("a");
+              a.href = "/m/" + encodeURIComponent(dados.token);
+              a.className = "nav-volta";
+              a.textContent = "← " + (dados.rotulo || "Partida");
+              a.title = "Voltar à última partida que você abriu";
+              links.prepend(a);
+            }
+
+            // ═══════════════════════════════════════════════════════════
             //  Faixas de rank
             // ═══════════════════════════════════════════════════════════
 

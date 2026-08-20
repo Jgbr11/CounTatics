@@ -169,6 +169,8 @@ final class MatchListPageTemplate {
               });
             }
 
+            oferecerVoltaAPartida();
+
             el("titulo").textContent = "Partidas de " + (DASH.playerName || DASH.steamId64);
             renderFiltros();
             renderLista();
