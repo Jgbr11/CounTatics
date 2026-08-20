@@ -166,6 +166,39 @@ final class HudTheme {
               99%{opacity:.44}
             }
 
+            /* ───────────────────────────────────────────────────────────
+               NAVEGAÇÃO
+               Fixa no topo: numa página longa de estatística, a saída não
+               pode exigir rolar até o começo. Fundo opaco porque ela passa
+               por cima do conteúdo.
+               ─────────────────────────────────────────────────────────── */
+            .nav{
+              position:sticky;top:0;z-index:5;
+              background:rgba(10,7,20,.92);
+              backdrop-filter:blur(6px);
+              border-bottom:1px solid var(--line);
+            }
+            .nav-in{max-width:1140px;margin:0 auto;padding:.7rem 1rem;
+                    display:flex;align-items:center;gap:1.25rem}
+
+            .nav-marca{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.22em;
+                       text-transform:uppercase;color:var(--neon);text-decoration:none}
+            a.nav-marca:hover{text-shadow:0 0 12px rgba(176,38,255,.55)}
+
+            .nav-links{display:flex;gap:.25rem;margin-left:auto;flex-wrap:wrap}
+            .nav-links a{
+              font-family:var(--f-body);font-size:.72rem;font-weight:600;
+              letter-spacing:.12em;text-transform:uppercase;
+              color:var(--muted);text-decoration:none;
+              padding:.4rem .7rem;
+              border:1px solid transparent;
+            }
+            .nav-links a:hover{color:var(--text);border-color:var(--line)}
+            /* O estado ativo se apoia no aria-current, não numa classe: assim
+               o visual e o leitor de tela não podem divergir. */
+            .nav-links a[aria-current="page"]{
+              color:var(--neon);border-color:var(--line);background:var(--tint)}
+
             /* Todo conteúdo sobe acima das duas camadas de fundo. */
             .wrap{position:relative;z-index:2;max-width:1140px;margin:0 auto;
                   padding:2rem 1rem 4rem}
@@ -229,7 +262,6 @@ final class HudTheme {
             /* O filete entra ANTES de qualquer ação, empurrando-a para a
                direita — daí o ::after ser irmão e não o último elemento. */
             .panel-head::after{content:"";flex:1;height:1px;background:var(--line);order:1}
-            .panel-head .btn{order:2;padding:.35rem .8rem;font-size:.7rem}
 
             /* ───────────────────────────────────────────────────────────
                METRIC CARD
@@ -518,6 +550,34 @@ final class HudTheme {
             .radar-lbl{fill:var(--muted);font-family:var(--f-body);font-size:11px;
                        font-weight:600;letter-spacing:.08em;text-transform:uppercase}
             .radar-val{fill:var(--text);font-family:var(--f-mono);font-size:11px}
+
+            /* ───────────────────────────────────────────────────────────
+               SELO DE TÍTULO
+               Chanfrado como o resto do vocabulário, e colorido pela
+               CATEGORIA — o tom precisa chegar antes da leitura.
+               ─────────────────────────────────────────────────────────── */
+            .badge-award{
+              --aw:var(--neon);
+              --aw-soft:rgba(176,38,255,.14);
+              display:inline-block;
+              margin-left:.5rem;
+              padding:.1rem .45rem;
+              font-family:var(--f-body);font-size:.62rem;font-weight:700;
+              letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;
+              color:var(--aw);
+              background:var(--aw-soft);
+              border:1px solid var(--aw);
+              cursor:help;
+              vertical-align:middle;
+            }
+            .badge-award.is-epico {--aw:#FFC53D;--aw-soft:rgba(255,197,61,.14)}
+            .badge-award.is-neutro{--aw:var(--neon);--aw-soft:rgba(176,38,255,.14)}
+            .badge-award.is-comico{--aw:#FF57C1;--aw-soft:rgba(255,87,193,.14)}
+
+            /* Só o épico brilha. Se todos brilhassem, nenhum se destacaria. */
+            .badge-award.is-epico{box-shadow:0 0 12px rgba(255,197,61,.35)}
+
+            .badge-award.is-grande{font-size:.72rem;padding:.2rem .6rem;margin-left:0}
 
             /* ───────────────────────────────────────────────────────────
                SPARKLINE E BARRA DE K/D

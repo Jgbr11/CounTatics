@@ -1,5 +1,7 @@
 package com.countatic.core.service;
 
+import com.countatic.core.award.AwardCalculatorService;
+import com.countatic.core.dto.stats.AwardDTO;
 import com.countatic.core.dto.stats.MatchDetailDTO;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
@@ -31,17 +33,20 @@ public class MatchQueryService {
     private final PlayerRepository playerRepository;
     private final BaselineService baselineService;
     private final List<StatCalculationStrategy> strategies;
+    private final AwardCalculatorService awardCalculator;
 
     public MatchQueryService(MatchRepository matchRepository,
                              RoundRepository roundRepository,
                              PlayerRepository playerRepository,
                              BaselineService baselineService,
-                             List<StatCalculationStrategy> strategies) {
+                             List<StatCalculationStrategy> strategies,
+                             AwardCalculatorService awardCalculator) {
         this.matchRepository = matchRepository;
         this.roundRepository = roundRepository;
         this.playerRepository = playerRepository;
         this.baselineService = baselineService;
         this.strategies = strategies;
+        this.awardCalculator = awardCalculator;
     }
 
     @Transactional(readOnly = true)
@@ -153,6 +158,20 @@ public class MatchQueryService {
             }
         }
 
+        // Títulos: depois das strategies, porque uma regra pode cruzar
+        // categorias — "Arquiteto" olha flash (Utility) e dano de granada.
+        int roundsDaPartida = match.getTotalRounds() == null ? 0 : match.getTotalRounds();
+        for (MatchDetailDTO.PlayerRow linha : rows.values()) {
+            Map<String, Double> todas = new LinkedHashMap<>();
+            linha.getMetrics().values().forEach(todas::putAll);
+
+            awardCalculator.calcular(new AwardCalculatorService.AwardContext(
+                            linha.getKills(), linha.getDeaths(), linha.getAssists(),
+                            roundsDaPartida, todas))
+                    .map(AwardDTO::de)
+                    .ifPresent(linha::setAward);
+        }
+
         List<MatchDetailDTO.PlayerRow> ordered = new ArrayList<>(rows.values());
         ordered.sort(Comparator.comparingInt(MatchDetailDTO.PlayerRow::getKills).reversed());
 
@@ -176,6 +195,7 @@ public class MatchQueryService {
                 .csRating(match.getCsRating())
                 .rankTier(match.getRankTier() == null ? null : match.getRankTier().name())
                 .rankTierLabel(match.getRankTier() == null ? null : match.getRankTier().getLabel())
+                .ownerToken(tokenDoDono(ordered))
                 .players(ordered)
                 .build();
     }
@@ -189,6 +209,24 @@ public class MatchQueryService {
      * eles um percentil de uma faixa que talvez não seja a deles seria
      * apresentar suposição como fato.</p>
      */
+    /**
+     * Token do painel do primeiro participante cadastrado.
+     *
+     * <p>Separado de {@link #anexarComparacao} porque aquele só roda quando a
+     * partida tem faixa definida, e o link para o perfil deve existir de
+     * qualquer forma.</p>
+     */
+    private String tokenDoDono(List<MatchDetailDTO.PlayerRow> linhas) {
+        for (MatchDetailDTO.PlayerRow linha : linhas) {
+            var dono = playerRepository.findBySteamId64(linha.getSteamId64())
+                    .filter(p -> p.getAuthCode() != null)
+                    .map(com.countatic.core.entity.Player::getPublicToken)
+                    .orElse(null);
+            if (dono != null) return dono;
+        }
+        return null;
+    }
+
     private void anexarComparacao(Match match, List<MatchDetailDTO.PlayerRow> linhas) {
         if (match.getRankTier() == null) return;
 

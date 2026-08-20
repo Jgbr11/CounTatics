@@ -178,7 +178,6 @@ final class MatchPageTemplate {
                       <button type="button" class="btn is-ct" data-lado="ct" aria-pressed="false">CT</button>
                       <button type="button" class="btn is-tr" data-lado="tr" aria-pressed="false">TR</button>
                     </div>
-                    <button type="button" class="btn" id="btnImagem">Gerar imagem</button>
                   </div>
                   <p class="hint" style="margin:-.5rem 0 1rem">
                     A cor do número compara com a <b>média desta partida</b>:
@@ -468,7 +467,7 @@ final class MatchPageTemplate {
                 tr.className = positivo ? "is-up" : "is-down";
                 tr.tabIndex = 0;
                 tr.innerHTML =
-                  `<td>${txt(p.playerName || p.steamId64)}</td>` +
+                  `<td>${txt(p.playerName || p.steamId64)}${MatchBadge(p.award)}</td>` +
                   `<td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td>` +
                   `<td>${p.headshots}</td>` +
                   `<td class="${positivo ? "up" : "down"}">` +
@@ -501,7 +500,8 @@ final class MatchPageTemplate {
               if (!p) return;
               indiceSelecionado = i;
 
-              el("detailTitle").textContent = "Métricas — " + (p.playerName || p.steamId64);
+              el("detailTitle").innerHTML = "Métricas — " + txt(p.playerName || p.steamId64)
+                + MatchBadge(p.award, "grande");
 
               // Recorte volta para "partida inteira" ao trocar de jogador: o
               // lado escolhido para um não diz nada sobre o próximo.
@@ -585,7 +585,6 @@ final class MatchPageTemplate {
               if (rounds == null) {
                 renderTendencia(p);
                 carregarSparklines(p);
-                prepararImagem(p, todas);
               }
             }
 
@@ -640,82 +639,6 @@ final class MatchPageTemplate {
 
               const dados = ladosDoJogador[lado] || {};
               renderDetalhe(p, dados.metrics, dados.insights, dados.roundsJogados ?? 0);
-            }
-
-            /**
-             * Botão de exportar imagem do jogador selecionado.
-             *
-             * As três métricas do card são fixas de propósito — K/D, ADR e
-             * HS% são as que se lê de relance num anexo de chat. Deixar o
-             * usuário escolher seria uma tela de configuração para um botão.
-             */
-            function prepararImagem(p, metricas) {
-              const btn = el("btnImagem");
-              if (!btn) return;
-
-              const num = (v, casas) => typeof v === "number" ? v.toFixed(casas) : "—";
-              const kd = p.deaths > 0 ? p.kills / p.deaths : p.kills;
-
-              btn.onclick = async () => {
-                const rotulo = btn.textContent;
-                btn.disabled = true;
-                btn.textContent = "Gerando…";
-                try {
-                  await baixarImagem({
-                    mapa: DATA.mapName,
-                    scoreCT: DATA.scoreCT,
-                    scoreTR: DATA.scoreTR,
-                    jogador: p.playerName || p.steamId64,
-                    rodape: DATA.playedAt
-                      ? "Partida de " + new Date(DATA.playedAt).toLocaleDateString("pt-BR")
-                      : "Análise gerada a partir da demo oficial",
-                    metricas: [
-                      {rotulo: "K/D", valor: num(kd, 2), cor: kd >= 1 ? "--good" : "--bad"},
-                      {rotulo: "ADR", valor: num(metricas.adr, 1)},
-                      {rotulo: "Headshot %", valor: num(metricas.headshotPercentage, 1) + "%"},
-                    ],
-                  }, `countatic-${DATA.mapName || "partida"}-${p.playerName || ""}.png`);
-                } finally {
-                  btn.disabled = false;
-                  btn.textContent = rotulo;
-                }
-              };
-            }
-
-            /**
-             * Sparklines dos cards.
-             *
-             * Uma requisição para todas as métricas — o backend lê as mesmas
-             * linhas uma vez só. Os cards já estão na tela quando a resposta
-             * chega; a curva é acrescentada depois, e a página nunca fica
-             * esperando por ela.
-             */
-            async function carregarSparklines(p) {
-              const chaves = Object.keys(METRICAS)
-                .filter(k => cfg(k).spark)
-                .filter(k => Object.values(p.metrics || {}).some(cat => k in cat));
-
-              if (!chaves.length) return;
-
-              try {
-                const r = await fetch(`/api/players/${encodeURIComponent(p.steamId64)}/trends`
-                                    + `?metrics=${chaves.join(",")}&limit=10`);
-                if (!r.ok) return;
-                const { series } = await r.json();
-
-                for (const s of series || []) {
-                  const valores = (s.pontos || []).map(x => x.valor);
-                  const svg = Sparkline(valores, s.maiorEhMelhor);
-                  if (!svg) continue;
-
-                  // Card ainda na tela? Trocar de jogador rápido pode ter
-                  // trocado a lista embaixo desta resposta.
-                  const alvo = document.querySelector(`[data-metrica="${s.metric}"] .cut-in`);
-                  if (alvo && !alvo.querySelector(".spark")) alvo.insertAdjacentHTML("beforeend", svg);
-                }
-              } catch (e) {
-                // Sparkline é complemento do número, que já está visível.
-              }
             }
 
             // ═══════════════════════════════════════════════════════════

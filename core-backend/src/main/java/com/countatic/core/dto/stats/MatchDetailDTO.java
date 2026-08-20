@@ -41,6 +41,18 @@ public class MatchDetailDTO {
     /** Rótulo legível da faixa, ex: "Azul (10.000–14.999)". */
     private String rankTierLabel;
 
+    /**
+     * Token do painel do jogador dono da partida.
+     *
+     * <p>É quem tem credenciais cadastradas — o mesmo critério da comparação
+     * por faixa. Serve para a página da partida saber para qual perfil voltar;
+     * sem isso, quem abre o link vindo da Steam fica sem saída para o resto do
+     * sistema.</p>
+     *
+     * <p>{@code null} quando nenhum participante está cadastrado.</p>
+     */
+    private String ownerToken;
+
     /** Uma linha por jogador, com as métricas agregadas de todas as categorias. */
     private List<PlayerRow> players;
 
@@ -70,6 +82,15 @@ public class MatchDetailDTO {
          * pelo texto.</p>
          */
         private Map<String, Map<String, Insight>> insights;
+
+        /**
+         * Título da partida, quando o desempenho rende algum.
+         *
+         * <p>Frequentemente {@code null}: a maioria das partidas de um jogador
+         * mediano não rende título, e dar um a todo mundo tiraria o valor de
+         * receber.</p>
+         */
+        private AwardDTO award;
 
         /**
          * Comparação com jogadores da mesma faixa.
