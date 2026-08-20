@@ -34,19 +34,22 @@ public class MatchQueryService {
     private final BaselineService baselineService;
     private final List<StatCalculationStrategy> strategies;
     private final AwardCalculatorService awardCalculator;
+    private final PersonalRecordService recordService;
 
     public MatchQueryService(MatchRepository matchRepository,
                              RoundRepository roundRepository,
                              PlayerRepository playerRepository,
                              BaselineService baselineService,
                              List<StatCalculationStrategy> strategies,
-                             AwardCalculatorService awardCalculator) {
+                             AwardCalculatorService awardCalculator,
+                             PersonalRecordService recordService) {
         this.matchRepository = matchRepository;
         this.roundRepository = roundRepository;
         this.playerRepository = playerRepository;
         this.baselineService = baselineService;
         this.strategies = strategies;
         this.awardCalculator = awardCalculator;
+        this.recordService = recordService;
     }
 
     @Transactional(readOnly = true)
@@ -161,9 +164,12 @@ public class MatchQueryService {
         // Títulos: depois das strategies, porque uma regra pode cruzar
         // categorias — "Arquiteto" olha flash (Utility) e dano de granada.
         int roundsDaPartida = match.getTotalRounds() == null ? 0 : match.getTotalRounds();
+        Map<String, Map<String, Double>> achatadas = new LinkedHashMap<>();
+
         for (MatchDetailDTO.PlayerRow linha : rows.values()) {
             Map<String, Double> todas = new LinkedHashMap<>();
             linha.getMetrics().values().forEach(todas::putAll);
+            achatadas.put(linha.getSteamId64(), todas);
 
             awardCalculator.calcular(new AwardCalculatorService.AwardContext(
                             linha.getKills(), linha.getDeaths(), linha.getAssists(),
@@ -171,6 +177,14 @@ public class MatchQueryService {
                     .map(AwardDTO::de)
                     .ifPresent(linha::setAward);
         }
+
+        // Recordes pessoais no mapa. Uma consulta para todos os jogadores,
+        // reaproveitando o mesmo mapa achatado dos títulos.
+        recordService.recordes(match.getMapName(), match.getId(), achatadas)
+                .forEach((steamId, chaves) -> {
+                    MatchDetailDTO.PlayerRow linha = rows.get(steamId);
+                    if (linha != null) linha.setPersonalBests(chaves);
+                });
 
         List<MatchDetailDTO.PlayerRow> ordered = new ArrayList<>(rows.values());
         ordered.sort(Comparator.comparingInt(MatchDetailDTO.PlayerRow::getKills).reversed());

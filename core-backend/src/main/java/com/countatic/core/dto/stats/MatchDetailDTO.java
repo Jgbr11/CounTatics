@@ -6,8 +6,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Visão completa de uma partida, consumida pela página de detalhes
@@ -82,6 +84,16 @@ public class MatchDetailDTO {
          * pelo texto.</p>
          */
         private Map<String, Map<String, Insight>> insights;
+
+        /**
+         * Métricas em que esta partida bateu o recorde do jogador no mapa.
+         *
+         * <p>Chaves de métrica, ex: {@code ["adr", "kdRatio"]}. Vazio na
+         * maioria das partidas — e vazio também enquanto não houver histórico
+         * suficiente no mapa para a comparação significar algo.</p>
+         */
+        @Builder.Default
+        private Set<String> personalBests = new LinkedHashSet<>();
 
         /**
          * Título da partida, quando o desempenho rende algum.

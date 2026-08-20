@@ -278,10 +278,15 @@ final class HudTheme {
                   background:var(--line);padding:1px}
             .chip > .cut-in{background:rgba(255,255,255,.02);padding:.75rem .85rem}
 
+            /* O rótulo é secundário ao número, mas não pode ser ilegível:
+               a .66rem em maiúsculas com espaçamento, o roxo apagado ficava
+               no limite do contraste mínimo para texto pequeno. Um pouco
+               maior, mais pesado e mais claro resolve sem competir com o
+               valor, que segue sendo o elemento de peso do card. */
             .chip .k{display:flex;align-items:center;gap:.4rem;
-                     font-size:.66rem;font-weight:600;letter-spacing:.13em;
-                     text-transform:uppercase;color:var(--muted);
-                     margin-bottom:.4rem;line-height:1.3}
+                     font-size:.7rem;font-weight:700;letter-spacing:.12em;
+                     text-transform:uppercase;color:#A99CC6;
+                     margin-bottom:.45rem;line-height:1.3}
             .chip .k .ico{flex:0 0 auto;opacity:.75}
 
             /* A cor do valor É o status. O glow acompanha a mesma variável,
@@ -290,6 +295,34 @@ final class HudTheme {
                      letter-spacing:.02em;color:var(--st)}
             .chip.is-acima  {--st:var(--good);--st-glow:rgba(43,224,138,.45)}
             .chip.is-abaixo {--st:var(--bad); --st-glow:rgba(255,77,106,.45)}
+
+            /* Recorde pessoal: apenas o CONTORNO dourado, com um brilho leve.
+               Tingir o bloco inteiro competia com o número, que é o dado — a
+               moldura destaca sem tomar a atenção.
+
+               O fundo do .chip É a borda de 1px (técnica de duas camadas),
+               então é ele que recebe o dourado; a camada interna fica como
+               nos demais cards.
+
+               O brilho usa drop-shadow, e não box-shadow: o card é recortado
+               por clip-path, e clip-path corta a box-shadow junto — o brilho
+               simplesmente não apareceria. O filter é aplicado DEPOIS do
+               recorte, então a luz acompanha o contorno chanfrado. */
+            .chip.is-recorde{background:#FFC53D;
+                             filter:drop-shadow(0 0 8px rgba(255,197,61,.45))}
+
+            /* A camada interna precisa ser OPACA aqui.
+               Nos demais cards ela é rgba(255,255,255,.02) — quase
+               transparente — e deixa a cor de trás atravessar. Com o roxo
+               translúcido da borda isso passa despercebido; com o dourado
+               sólido, o card inteiro fica amarelo em vez de só o contorno.
+               A cor sólida abaixo é a média do gradiente do painel, então o
+               card continua idêntico aos outros por dentro. */
+            .chip.is-recorde > .cut-in{
+              background:linear-gradient(rgba(255,255,255,.02),rgba(255,255,255,.02)),#150E2A;
+            }
+
+            .chip .pr{margin-left:.4rem;font-size:.75em;cursor:help;vertical-align:middle}
 
             /* ─── Hierarquia ───────────────────────────────────────────
                Nem toda métrica pesa igual. K/D e ADR decidem a leitura da
@@ -302,7 +335,7 @@ final class HudTheme {
             .chip.is-principal > .cut-in{padding:.95rem 1.05rem}
             .chip.is-principal .v{font-size:2.1rem;font-weight:900;
                                   text-shadow:0 0 18px var(--st-glow)}
-            .chip.is-principal .k{font-size:.7rem}
+            .chip.is-principal .k{font-size:.75rem}
 
             /* Numa coluna só, "span 2" estouraria a grade. */
             @media (max-width:420px){

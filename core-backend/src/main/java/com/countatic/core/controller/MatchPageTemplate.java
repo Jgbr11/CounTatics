@@ -546,6 +546,11 @@ final class MatchPageTemplate {
                         as taxas abaixo são muito sensíveis a um round isolado.</p>` + html;
               }
 
+              // Recordes só valem para a partida inteira: um "melhor de todos
+              // os tempos" calculado sobre metade dos rounds não é comparável
+              // com o histórico, que é sempre de partidas completas.
+              const recordes = new Set(rounds == null ? (p.personalBests || []) : []);
+
               for (const cat of cats) {
                 html += `<div class="cat"><h3>${txt(cat)}</h3><div class="chips">`;
 
@@ -558,6 +563,7 @@ final class MatchPageTemplate {
                   const c = cfg(k);
                   html += MetricCard({
                     chave: k,
+                    recorde: recordes.has(k),
                     label: c.rotulo,
                     valor: c.fmt(v),
                     icone: c.icone,

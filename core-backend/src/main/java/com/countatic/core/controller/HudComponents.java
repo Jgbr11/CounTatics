@@ -110,7 +110,7 @@ final class HudComponents {
              * junto com o fundo; sem a camada externa, a diagonal fica sem
              * linha.
              */
-            function MetricCard({ label, valor, icone, status, principal, ajuda, spark, chave }) {
+            function MetricCard({ label, valor, icone, status, principal, ajuda, spark, chave, recorde }) {
               const classes = ["chip", "cut"];
               if (status === "acima")  classes.push("is-acima");
               if (status === "abaixo") classes.push("is-abaixo");
@@ -131,10 +131,17 @@ final class HudComponents {
               // depois, quando a resposta do histórico chega.
               const attrChave = chave ? ` data-metrica="${esc(chave)}"` : "";
 
+              // Recorde pessoal no mapa. Vai depois do número e não no lugar
+              // dele: o valor continua sendo a informação, a chama é o adorno.
+              const pr = recorde
+                ? `<span class="pr" title="Seu melhor resultado neste mapa">🏆</span>`
+                : "";
+              if (recorde) classes.push("is-recorde");
+
               return `<div class="${classes.join(" ")}"${attrChave}>
                   <div class="cut-in">
                     <div class="k"${attrAjuda}>${icone ? icon(icone, 13) : ""}<span>${esc(label)}</span></div>
-                    <div class="v">${sig}${esc(valor)}</div>
+                    <div class="v">${sig}${esc(valor)}${pr}</div>
                     ${spark || ""}
                   </div>
                 </div>`;

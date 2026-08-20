@@ -47,6 +47,24 @@ public interface PlayerMatchStatsRepository extends JpaRepository<PlayerMatchSta
             + "where s.steamId64 = :steamId order by m.playedAt desc")
     List<PlayerMatchStats> findRecentesComPartida(@Param("steamId") String steamId, Pageable pageable);
 
+    /**
+     * Desempenhos anteriores de vários jogadores num mapa.
+     *
+     * <p>Alimenta os recordes pessoais. Uma consulta só para todos os
+     * jogadores da partida, em vez de uma por jogador por métrica: a
+     * alternativa literal — {@code findMaxAdrBySteamIdAndMap}, e uma irmã para
+     * cada métrica — daria mais de cem consultas por página. Os máximos saem
+     * em memória sobre estas linhas, que são poucas por definição.</p>
+     *
+     * <p>A partida atual é <b>excluída</b>: sem isso ela seria o próprio
+     * recorde que está tentando bater.</p>
+     */
+    @Query("select s from PlayerMatchStats s join s.match m "
+            + "where s.steamId64 in :steamIds and m.mapName = :mapa and m.id <> :excluir")
+    List<PlayerMatchStats> findAnterioresNoMapa(@Param("steamIds") List<String> steamIds,
+                                                @Param("mapa") String mapa,
+                                                @Param("excluir") Long excluir);
+
     /** Total de desempenhos registrados na faixa. */
     long countByRankTier(RankTier rankTier);
 
