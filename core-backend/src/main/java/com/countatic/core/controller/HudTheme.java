@@ -577,6 +577,51 @@ final class HudTheme {
                             text-transform:uppercase;color:var(--neon)}
 
             /* ───────────────────────────────────────────────────────────
+               DESTAQUES DE RODADA
+               O número do round fica à esquerda, grande, porque é por ele que
+               a pessoa reencontra o momento na demo. O primeiro colocado é o
+               único destacado: três realces lado a lado deixam de destacar.
+               ─────────────────────────────────────────────────────────── */
+            .hl{list-style:none;padding:0;margin:0;display:grid;gap:.5rem}
+            .hl-item{
+              --hl:var(--line);
+              display:flex;align-items:center;gap:.9rem;
+              padding:.7rem .9rem;
+              background:rgba(255,255,255,.02);
+              border:1px solid var(--hl);
+            }
+            .hl-item.is-topo{
+              --hl:var(--neon);
+              background:rgba(176,38,255,.07);
+            }
+            .hl-round{
+              flex:0 0 auto;min-width:3.1rem;text-align:center;
+              font-family:var(--f-mono);font-size:.62rem;letter-spacing:.14em;
+              text-transform:uppercase;color:var(--muted);line-height:1.25
+            }
+            .hl-round b{display:block;font-family:var(--f-display);font-weight:900;
+                        font-size:1.35rem;letter-spacing:0;color:var(--text)}
+            .hl-item.is-topo .hl-round b{color:var(--neon)}
+            .hl-corpo{min-width:0;flex:1 1 auto}
+            .hl-titulo{font-family:var(--f-display);font-weight:700;
+                       font-size:.95rem;letter-spacing:.02em}
+            .hl-desc{margin:.2rem 0 0;font-size:.86rem;line-height:1.45;
+                     color:var(--muted)}
+
+            /* A pontuação é o critério da ordem: escondê-la deixaria "por que
+               este round e não aquele" sem resposta na tela. */
+            .hl-pts{flex:0 0 auto;text-align:right;font-family:var(--f-mono);
+                    font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
+                    color:var(--muted);line-height:1.3}
+            .hl-pts b{display:block;font-family:var(--f-display);font-weight:700;
+                      font-size:1rem;letter-spacing:0;color:var(--text)}
+
+            /* Perdeu o round: o feito continua valendo, mas não é vitória.
+               A barra à esquerda diz isso sem tingir o bloco inteiro. */
+            .hl-item.is-perdido{box-shadow:inset 3px 0 0 var(--bad)}
+            .hl-item.is-ganho  {box-shadow:inset 3px 0 0 var(--good)}
+
+            /* ───────────────────────────────────────────────────────────
                RADAR
                Largura fixa e encolhível: o losango precisa de espaço para os
                rótulos, e espremê-lo mais que isso os faz colidir.

@@ -423,6 +423,48 @@ final class HudComponents {
             }
 
             // ═══════════════════════════════════════════════════════════
+            //  RoundHighlights
+            // ═══════════════════════════════════════════════════════════
+
+            /**
+             * Os melhores rounds do jogador.
+             *
+             * O placar da partida conta o agregado; isto conta o momento —
+             * "no round 14 você fechou sozinho contra três". A pontuação fica
+             * visível porque é o critério da ordem: sem ela, a lista pareceria
+             * arbitrária.
+             *
+             * Lista vazia é resultado legítimo e é dito com todas as letras.
+             * Inventar um destaque de uma kill para não deixar a seção vazia
+             * seria elogiar o que não houve.
+             */
+            function RoundHighlights(destaques) {
+              const lista = destaques || [];
+              if (!lista.length) {
+                return `<p class="hint">Nenhum round se destacou nesta partida.</p>`;
+              }
+
+              const itens = lista.map((d, i) => {
+                const classes = ["hl-item"];
+                if (i === 0) classes.push("is-topo");
+                classes.push(d.venceuRound ? "is-ganho" : "is-perdido");
+
+                return `<li class="${classes.join(" ")}">
+                    <div class="hl-round">Round<b>${d.roundNumber}</b></div>
+                    <div class="hl-corpo">
+                      <div class="hl-titulo">${esc(d.titulo)}</div>
+                      <p class="hl-desc">${esc(d.descricao)}</p>
+                    </div>
+                    <div class="hl-pts" title="Pontuação do round. A unidade é a kill: 1,0 = uma kill.">
+                      <b>${d.pontuacao.toFixed(1)}</b>pts
+                    </div>
+                  </li>`;
+              }).join("");
+
+              return `<ul class="hl">${itens}</ul>`;
+            }
+
+            // ═══════════════════════════════════════════════════════════
             //  Sparkline
             // ═══════════════════════════════════════════════════════════
 

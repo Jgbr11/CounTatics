@@ -1,5 +1,6 @@
 package com.countatic.core.strategy.impl;
 
+import com.countatic.core.analysis.ClutchDetector;
 import com.countatic.core.dto.stats.Insight;
 import com.countatic.core.dto.stats.PlayerStatResult;
 import com.countatic.core.entity.*;
@@ -98,7 +99,9 @@ public class ImpactStatStrategy implements StatCalculationStrategy {
             }
 
             // ─── Clutch ──────────────────────────────────────────────────
-            ClutchResult clutch = avaliarClutch(round, kills, playerId);
+            // A regra vive no ClutchDetector: o destaque de rodada lê a mesma
+            // situação e precisa do "contra quantos", que aqui não interessa.
+            ClutchDetector.Clutch clutch = ClutchDetector.avaliar(round, kills, playerId);
             if (clutch.tentou()) {
                 clutchesAttempted++;
                 if (clutch.venceu()) clutchesWon++;
@@ -243,62 +246,6 @@ public class ImpactStatStrategy implements StatCalculationStrategy {
         }
 
         return total;
-    }
-
-    private record ClutchResult(boolean tentou, boolean venceu) {
-    }
-
-    /**
-     * Detecta situação de clutch: o jogador ficou como último vivo do seu lado
-     * e ainda havia inimigo em pé.
-     *
-     * <p>Trabalha com o que temos: a sequência de kills do round. Assume 5 por
-     * lado — verdadeiro em Premier/competitivo, que é o escopo do sistema.
-     * Rounds com desconexão podem gerar falso positivo; por isso a métrica é
-     * apresentada como "clutches" e não como número exato de 1vN.</p>
-     */
-    private ClutchResult avaliarClutch(Round round, List<MatchEvent> kills, Long playerId) {
-        Team meuLado = descobrirLado(kills, playerId);
-        if (meuLado == null) return new ClutchResult(false, false);
-
-        int aliadosVivos = 5;
-        int inimigosVivos = 5;
-        boolean euVivo = true;
-        boolean ficouSozinho = false;
-
-        for (MatchEvent kill : kills) {
-            Player vitima = kill.getVictim();
-            if (vitima == null) continue;
-
-            if (vitima.getId().equals(playerId)) {
-                euVivo = false;
-                aliadosVivos--;
-            } else if (mesmoLado(kill.getVictimSide(), meuLado)) {
-                aliadosVivos--;
-            } else {
-                inimigosVivos--;
-            }
-
-            // Último do meu lado, com inimigo ainda em pé.
-            if (euVivo && aliadosVivos == 1 && inimigosVivos > 0) {
-                ficouSozinho = true;
-            }
-        }
-
-        if (!ficouSozinho) return new ClutchResult(false, false);
-
-        boolean venceu = euVivo && mesmoLado(round.getWinnerSide(), meuLado);
-
-        return new ClutchResult(true, venceu);
-    }
-
-    /** Descobre de que lado o jogador estava, a partir dos eventos do round. */
-    private Team descobrirLado(List<MatchEvent> kills, Long playerId) {
-        for (MatchEvent e : kills) {
-            if (ehAtor(e, playerId) && e.getActorSide() != null) return e.getActorSide();
-            if (ehVitima(e, playerId) && e.getVictimSide() != null) return e.getVictimSide();
-        }
-        return null;
     }
 
     // ═══════════════════════════════════════════════════════════════════

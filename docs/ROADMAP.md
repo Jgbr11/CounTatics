@@ -21,7 +21,7 @@ limpeza dos `0.0` gravados) não têm prazo, mas continuam abertas.
 
 ## Estado atual
 
-Cinco telas, 184 testes, e o pipeline completo de análise:
+Cinco telas, 213 testes, e o pipeline completo de análise:
 
 | Camada | O que existe |
 |---|---|
@@ -30,10 +30,9 @@ Cinco telas, 184 testes, e o pipeline completo de análise:
 | Comparação | Percentil por faixa de rank, com guarda de amostra mínima |
 | Histórico | Série temporal por métrica, médias das últimas N partidas |
 | Telas | Partida, painel do jogador, lista de partidas, 404/500 |
-| Extras | Títulos da partida, recorte CT/TR, painel de coaching por gravidade |
+| Extras | Títulos da partida, recorte CT/TR, coaching por gravidade, recordes pessoais, armas, desempenho por mapa, destaques de rodada |
 
-**Pendente de commit:** a navegação (barra fixa + página de partidas com filtro
-por mapa).
+**Pendente de commit:** os destaques de rodada (item 4).
 
 ---
 
@@ -42,48 +41,24 @@ por mapa).
 A ordem abaixo não é a de valor puro — é a que evita retrabalho. Itens que
 mudam contrato de dado vêm antes dos que consomem esse contrato.
 
-### 1. Recordes Pessoais · custo médio · sem dependência
+### ✅ 1 a 4 — concluídos
 
-Comparar a partida atual com o máximo histórico do jogador **por mapa** e
-marcar recorde no card.
+| # | Item | Onde ficou |
+|---|---|---|
+| 1 | Recordes Pessoais | `PersonalRecordService` — recorde por mapa, calculado na leitura, com mínimo de histórico |
+| 2 | Estatísticas por arma | `WeaponStatsService` — kills, HS% e acerto por disparo, no painel do jogador selecionado |
+| 3 | Desempenho por mapa | `PlayerDashboardService.agregarPorMapa` — V-D absoluto, na mesma janela das médias |
+| 4 | Highlights da Rodada | `RoundHighlightService` — pontuação por round, três destaques, piso para não inventar destaque |
 
-- Consultas de máximo em `PlayerMatchStatsRepository` (o `join fetch` com
-  `Match` já existe e dá acesso ao `mapName`)
-- Comparação no fluxo pós-análise, com flag `isPersonalBest` no DTO
-- Ícone no `MetricCard`, que já aceita variações por propriedade
+A decisão que estava em aberto no item 4 foi tomada: **a unidade é a kill**, e
+um 1v3 vencido vale **quatro kills** além das próprias kills do clutch. Os pesos
+estão em constantes no serviço, para ajuste depois de ver partidas reais.
 
-**Cuidado conhecido:** com 3 partidas no banco, quase tudo será recorde. O
-recorde só significa algo com histórico — vale exigir um mínimo de partidas no
-mapa antes de exibir, como o baseline já faz com amostra.
+Junto com o item 4, a regra de clutch saiu de dentro da Strategy de Impacto para
+`analysis/ClutchDetector` — dois leitores precisavam dela, e o destaque precisa
+do "contra quantos" que a métrica agregada descarta.
 
-### 2. Estatísticas por arma · custo médio · sem dependência
-
-O campo `weapon` está em todo kill, dano e disparo, e **nunca foi usado**. É
-uma das telas mais consultadas do Leetify e o dado já está no banco.
-
-- Nova Strategy ou serviço dedicado: kills, HS% e precisão por arma
-- Precisão exige cruzar `WEAPON_FIRE` com `DAMAGE` da mesma arma
-- Tela ou seção nova, com a arma como eixo
-
-### 3. Desempenho por mapa · custo baixo · sem dependência
-
-Agregar o histórico por mapa no painel: onde você vai bem e onde vai mal.
-Barato porque o `mapName` já viaja em cada partida, e muda decisão real — qual
-mapa banir.
-
-### 4. Highlights da Rodada · custo médio-alto · sem dependência
-
-Pontuar cada round do jogador (kill, clutch, defuse, trade) e destacar o
-melhor, com frase descritiva.
-
-- Os eventos já vêm agrupados por round e o `Round` tem `startTick`
-- Falta o algoritmo de pontuação e a formatação da frase
-- Banner no topo da tela da partida
-
-**Decisão em aberto:** os pesos de cada evento. Um 1v3 vale quantas kills
-normais? Isso define se o highlight escolhe o round certo.
-
-### 5. Login com Steam · custo médio-alto · **destrava o item 6**
+### 5. Login com Steam · custo médio-alto · **destrava as Metas**
 
 Hoje o acesso é por token secreto na URL. Funciona, mas não é "minha conta", e
 é o que ainda separa o sistema de uma plataforma.
@@ -92,14 +67,14 @@ Hoje o acesso é por token secreto na URL. Funciona, mas não é "minha conta", 
 - Resolve identidade, multi-usuário de verdade e a pergunta "de quem é isso"
 - O `publicToken` continua útil para compartilhar sem expor o perfil
 
-### 6. Metas · custo alto · **depende do item 5**
+### 6. Metas · custo alto · **depende do login**
 
 Definir alvo ("HS% para 50% este mês") e acompanhar.
 
 Depende de identidade porque uma meta pertence a alguém. Sem login, seria uma
 tabela solta apontando para um `Player` que qualquer um pode consultar.
 
-### 7. Filtros no painel · custo baixo · melhor depois do item 3
+### 7. Filtros no painel · custo baixo · agora desbloqueado
 
 Recortar por período e por mapa. Multiplica o valor de tudo que já existe, e o
 backend já sabe recortar por lado.

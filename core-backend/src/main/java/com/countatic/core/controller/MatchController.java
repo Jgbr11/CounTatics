@@ -13,6 +13,7 @@ import com.countatic.core.service.MatchSideStatsService;
 import com.countatic.core.service.WeaponStatsService;
 import com.countatic.core.service.PlayerDashboardService;
 import com.countatic.core.service.PlayerTrendService;
+import com.countatic.core.service.RoundHighlightService;
 import com.countatic.core.repository.PlayerRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,7 @@ public class MatchController {
     private final PlayerRepository playerRepository;
     private final MatchSideStatsService sideStatsService;
     private final WeaponStatsService weaponStatsService;
+    private final RoundHighlightService roundHighlightService;
 
     public MatchController(MatchQueryService matchQueryService,
                            MatchFetchJobService jobService,
@@ -52,9 +54,11 @@ public class MatchController {
                            PlayerDashboardService dashboardService,
                            PlayerRepository playerRepository,
                            MatchSideStatsService sideStatsService,
-                           WeaponStatsService weaponStatsService) {
+                           WeaponStatsService weaponStatsService,
+                           RoundHighlightService roundHighlightService) {
         this.sideStatsService = sideStatsService;
         this.weaponStatsService = weaponStatsService;
+        this.roundHighlightService = roundHighlightService;
         this.matchQueryService = matchQueryService;
         this.jobService = jobService;
         this.demoParserClientService = demoParserClientService;
@@ -214,6 +218,21 @@ public class MatchController {
     public ResponseEntity<?> armas(@PathVariable("id") Long id,
                                    @PathVariable("steamId") String steamId) {
         return weaponStatsService.calcular(id, steamId)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Os melhores rounds do jogador nesta partida.
+     *
+     * <p>Sob demanda pelo mesmo motivo das armas: pontuar todos os rounds dos
+     * dez jogadores em toda visita seria trabalho jogado fora na maioria
+     * das vezes.</p>
+     */
+    @GetMapping("/matches/{id}/players/{steamId}/highlights")
+    public ResponseEntity<?> destaques(@PathVariable("id") Long id,
+                                       @PathVariable("steamId") String steamId) {
+        return roundHighlightService.calcular(id, steamId)
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

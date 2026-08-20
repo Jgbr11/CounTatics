@@ -200,6 +200,13 @@ final class MatchPageTemplate {
 
               <section class="panel cut">
                 <div class="cut-in">
+                  <div class="panel-head"><h2 id="destaquesTitle">Melhores rounds</h2></div>
+                  <div id="destaques" aria-live="polite"></div>
+                </div>
+              </section>
+
+              <section class="panel cut">
+                <div class="cut-in">
                   <div class="panel-head"><h2 id="armasTitle">Armas</h2></div>
                   <div id="armas" aria-live="polite"></div>
                 </div>
@@ -601,12 +608,13 @@ final class MatchPageTemplate {
               el("coach").innerHTML = CoachPanel(dicas);
               el("banner").innerHTML = CoachBanner(dicas);
 
-              // Estes três olham o histórico e a partida como um todo; não
-              // mudam com o recorte de lado.
+              // Estes quatro olham o histórico e a partida como um todo;
+              // não mudam com o recorte de lado.
               if (rounds == null) {
                 renderTendencia(p);
                 carregarSparklines(p);
                 carregarArmas(p);
+                carregarDestaques(p);
               }
             }
 
@@ -635,6 +643,39 @@ final class MatchPageTemplate {
               } catch (e) {
                 if (alvo.dataset.pedido !== pedido) return;
                 alvo.innerHTML = `<p class="hint">Não foi possível carregar as armas agora.</p>`;
+              }
+            }
+
+            /**
+             * Melhores rounds do jogador selecionado.
+             *
+             * Sob demanda, como as armas: pontuar todos os rounds dos dez
+             * jogadores em toda visita seria trabalho jogado fora na maioria
+             * das vezes.
+             */
+            async function carregarDestaques(p) {
+              const alvo = el("destaques");
+              el("destaquesTitle").textContent =
+                "Melhores rounds — " + (p.playerName || p.steamId64);
+              alvo.innerHTML = `<p class="hint">Carregando…</p>`;
+
+              // Trocar de jogador durante a requisição não pode deixar a
+              // resposta antiga sobrescrever a nova.
+              const pedido = p.steamId64;
+              alvo.dataset.pedido = pedido;
+
+              try {
+                const r = await fetch(`/api/matches/${DATA.matchId}`
+                                    + `/players/${encodeURIComponent(p.steamId64)}/highlights`);
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                const dados = await r.json();
+
+                if (alvo.dataset.pedido !== pedido) return;
+                alvo.innerHTML = RoundHighlights(dados.destaques);
+              } catch (e) {
+                if (alvo.dataset.pedido !== pedido) return;
+                alvo.innerHTML =
+                  `<p class="hint">Não foi possível carregar os destaques agora.</p>`;
               }
             }
 
