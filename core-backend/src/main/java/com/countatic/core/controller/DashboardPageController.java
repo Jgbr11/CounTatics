@@ -2,7 +2,9 @@ package com.countatic.core.controller;
 
 import com.countatic.core.dto.stats.PlayerDashboardDTO;
 import com.countatic.core.service.PlayerDashboardService;
+import com.countatic.core.service.SessaoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,18 +32,22 @@ public class DashboardPageController {
 
     private final PlayerDashboardService dashboardService;
     private final ObjectMapper objectMapper;
+    private final SessaoService sessao;
 
     public DashboardPageController(PlayerDashboardService dashboardService,
-                                   ObjectMapper objectMapper) {
+                                   ObjectMapper objectMapper,
+                                   SessaoService sessao) {
         this.dashboardService = dashboardService;
         this.objectMapper = objectMapper;
+        this.sessao = sessao;
     }
 
     @GetMapping(value = "/p/{token}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> painel(
             @PathVariable("token") String token,
             @RequestParam(name = "partidas",
-                    defaultValue = "" + PlayerDashboardService.PARTIDAS_PADRAO) int partidas) {
+                    defaultValue = "" + PlayerDashboardService.PARTIDAS_PADRAO) int partidas,
+            HttpServletRequest pedido) {
 
         Optional<PlayerDashboardDTO> painel = dashboardService.porToken(token, partidas);
 
@@ -56,7 +62,7 @@ public class DashboardPageController {
             String json = objectMapper.writeValueAsString(painel.get());
             return ResponseEntity.ok()
                     .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-                    .body(DashboardPageTemplate.render(json, nav(token, "perfil")));
+                    .body(DashboardPageTemplate.render(json, nav(token, "perfil", logado(pedido))));
         } catch (Exception e) {
             log.error("Falha ao renderizar o painel {}: {}", token, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -74,7 +80,8 @@ public class DashboardPageController {
      * justamente para ver além das últimas vinte.</p>
      */
     @GetMapping(value = "/p/{token}/partidas", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> partidas(@PathVariable("token") String token) {
+    public ResponseEntity<String> partidas(@PathVariable("token") String token,
+                                           HttpServletRequest pedido) {
         Optional<PlayerDashboardDTO> painel =
                 dashboardService.porToken(token, PlayerDashboardService.PARTIDAS_MAXIMO);
 
@@ -89,7 +96,7 @@ public class DashboardPageController {
             String json = objectMapper.writeValueAsString(painel.get());
             return ResponseEntity.ok()
                     .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-                    .body(MatchListPageTemplate.render(json, nav(token, "partidas")));
+                    .body(MatchListPageTemplate.render(json, nav(token, "partidas", logado(pedido))));
         } catch (Exception e) {
             log.error("Falha ao renderizar a lista de partidas {}: {}", token, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -100,11 +107,15 @@ public class DashboardPageController {
     }
 
     /** Barra de navegação das telas do jogador. */
-    static String nav(String token, String ativa) {
+    static String nav(String token, String ativa, boolean logado) {
         String perfil = "/p/" + token;
-        return PageNav.render(perfil, java.util.List.of(
+        return PageNav.render(perfil, PageNav.comSessao(logado, java.util.List.of(
                 PageNav.item(perfil, "Perfil", "perfil".equals(ativa)),
                 PageNav.item(perfil + "/partidas", "Partidas", "partidas".equals(ativa))
-        ));
+        )));
+    }
+
+    private boolean logado(HttpServletRequest pedido) {
+        return sessao.steamIdLogado(pedido).isPresent();
     }
 }

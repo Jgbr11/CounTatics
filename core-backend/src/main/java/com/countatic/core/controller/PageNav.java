@@ -23,6 +23,25 @@ final class PageNav {
     record Item(String href, String rotulo, boolean ativo) {
     }
 
+    /**
+     * Acrescenta o item de sessão ao fim da barra.
+     *
+     * <p>Fica por último de propósito: entrar e sair não são navegação da
+     * página, são estado da pessoa. Entre "Perfil" e "Partidas" pareceria mais
+     * um destino.</p>
+     *
+     * <p>Sem sessão o convite é explícito — "Entrar com a Steam" diz o que vai
+     * acontecer, enquanto "Entrar" deixa a pessoa se perguntando que conta o
+     * site está pedindo.</p>
+     */
+    static List<Item> comSessao(boolean logado, List<Item> itens) {
+        List<Item> todos = new ArrayList<>(itens);
+        todos.add(logado
+                ? item("/sair", "Sair", false)
+                : item("/login", "Entrar com a Steam", false));
+        return todos;
+    }
+
     static Item item(String href, String rotulo, boolean ativo) {
         return new Item(href, rotulo, ativo);
     }

@@ -2,7 +2,9 @@ package com.countatic.core.controller;
 
 import com.countatic.core.dto.stats.MatchDetailDTO;
 import com.countatic.core.service.MatchQueryService;
+import com.countatic.core.service.SessaoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -28,14 +30,18 @@ public class MatchPageController {
 
     private final MatchQueryService matchQueryService;
     private final ObjectMapper objectMapper;
+    private final SessaoService sessao;
 
-    public MatchPageController(MatchQueryService matchQueryService, ObjectMapper objectMapper) {
+    public MatchPageController(MatchQueryService matchQueryService, ObjectMapper objectMapper,
+                               SessaoService sessao) {
         this.matchQueryService = matchQueryService;
         this.objectMapper = objectMapper;
+        this.sessao = sessao;
     }
 
     @GetMapping(value = "/m/{token}", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> matchPage(@PathVariable("token") String token) {
+    public ResponseEntity<String> matchPage(@PathVariable("token") String token,
+                                            HttpServletRequest pedido) {
         Optional<MatchDetailDTO> detail = matchQueryService.findByPublicToken(token);
 
         if (detail.isEmpty()) {
@@ -50,7 +56,7 @@ public class MatchPageController {
             String json = objectMapper.writeValueAsString(detail.get());
             return ResponseEntity.ok()
                     .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-                    .body(MatchPageTemplate.render(json, nav(detail.get().getOwnerToken(), token)));
+                    .body(MatchPageTemplate.render(json, nav(detail.get().getOwnerToken(), token, sessao.steamIdLogado(pedido).isPresent())));
         } catch (Exception e) {
             log.error("Falha ao renderizar a página da partida {}: {}", token, e.getMessage(), e);
             // A partida existe; quem falhou foi a renderização. Dizer "o link
@@ -74,17 +80,17 @@ public class MatchPageController {
      * verdade: dá para abrir o relatório de uma partida em que ninguém do
      * lobby usa o sistema.</p>
      */
-    private static String nav(String ownerToken, String matchToken) {
+    private static String nav(String ownerToken, String matchToken, boolean logado) {
         if (ownerToken == null || ownerToken.isBlank()) {
-            return PageNav.render(null);
+            return PageNav.render(null, PageNav.comSessao(logado, java.util.List.of()));
         }
         String perfil = "/p/" + ownerToken;
-        return PageNav.render(perfil, java.util.List.of(
+        return PageNav.render(perfil, PageNav.comSessao(logado, java.util.List.of(
                 PageNav.item(perfil, "Perfil", false),
                 PageNav.item(perfil + "/partidas", "Partidas", false),
                 // A própria página precisa aparecer na barra: sem ela, quem
                 // chega aqui vê dois destinos e nenhum indício de onde está.
                 PageNav.item("/m/" + matchToken, "Partida", true)
-        ));
+        )));
     }
 }

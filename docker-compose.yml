@@ -71,6 +71,9 @@ services:
       BOT_STEAM_ID: ${BOT_STEAM_ID:-}
       DEMO_TEMP_DIR: /tmp/demos
       GSI_TOKEN: ${GSI_TOKEN:-}
+      # Vazio desliga o login com a Steam; o resto do sistema segue igual.
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:8080}
     depends_on:
       mysql-db:
         condition: service_healthy

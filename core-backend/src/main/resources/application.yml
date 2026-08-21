@@ -71,6 +71,11 @@ countatic:
   web-base-url: ${WEB_BASE_URL:http://localhost:8080}
   # Intervalo do worker que processa os jobs pendentes.
   worker-interval-ms: 30000
+  # Chave que assina o cookie de sessão do login com a Steam.
+  # Vazia desliga o login: um segredo padrão no código seria público junto com
+  # o repositório, e qualquer um poderia assinar um cookie de qualquer conta.
+  # Gere com: openssl rand -base64 32
+  session-secret: ${SESSION_SECRET:}
   # Token compartilhado com o gamestate_integration_countatic.cfg do CS2.
   # Vazio recusa todo payload — endpoint aberto na 8080 aceitaria qualquer um.
   gsi:
